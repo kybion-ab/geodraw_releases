@@ -1,0 +1,415 @@
+#+TITLE: Consuming geodraw as a Pre-built Vendored Library
+#+AUTHOR: Magnus Nilsson, Kybion AB
+
+* Overview
+
+geodraw supports three consumption modes:
+
+1. *Standalone* — build and run geodraw's own apps directly.
+2. *Subdirectory* — add geodraw as a subdirectory in another repo's CMake tree
+   (~add_subdirectory(geodraw)~).
+3. *Vendored pre-built* — compile geodraw once, copy the ~.dylib~ and public
+   headers into another repo's ~external/~ tree, and consume them via an
+   ~IMPORTED~ CMake target. This document covers mode 3.
+
+No changes to ~geodraw/CMakeLists.txt~ are required for this mode.
+
+* Step 1 — Build geodraw
+
+#+begin_src bash
+# Inside the geodraw repo:
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --target geodraw
+#+end_src
+
+This produces (in ~build/~):
+
+| File                       | Role                              |
+|----------------------------+-----------------------------------|
+| ~libgeodraw.0.1.dylib~     | versioned shared library (macOS)  |
+| ~libgeodraw.1.dylib~       | SOVERSION symlink                 |
+| ~libgeodraw.dylib~         | linker symlink                    |
+
+* Step 2 — Copy into ANOTHER_REPO
+
+#+begin_src bash
+DEST=/path/to/ANOTHER_REPO
+
+# Library
+mkdir -p "$DEST/external/lib"
+cp  build/libgeodraw.0.1.dylib   "$DEST/external/lib/"
+cp  build/libgeodraw.1.dylib     "$DEST/external/lib/"   # or recreate the symlink
+cp  build/libgeodraw.dylib       "$DEST/external/lib/"   # linker symlink
+
+# Public headers
+mkdir -p "$DEST/external/include"
+cp -r include/geodraw             "$DEST/external/include/"
+#+end_src
+
+Resulting layout:
+
+#+begin_example
+ANOTHER_REPO/
+├── CMakeLists.txt
+├── external/
+│   ├── lib/
+│   │   ├── libgeodraw.0.1.dylib   ← actual file
+│   │   ├── libgeodraw.1.dylib     ← SOVERSION symlink
+│   │   └── libgeodraw.dylib       ← linker symlink
+│   └── include/
+│       └── geodraw/               ← contents of geodraw/include/geodraw/
+└── src/
+    └── main.cpp
+#+end_example
+
+** Bundling glm headers (eliminates system glm dependency)
+
+geodraw's public headers use ~<glm/…>~ types directly. If the consumer's environment
+may not have glm installed, copy the glm headers alongside geodraw's:
+
+#+begin_src bash
+# macOS — find glm installed via Homebrew:
+GLM_INC=$(brew --prefix glm)/include
+
+# Linux — find via pkg-config:
+# GLM_INC=$(pkg-config --variable=includedir glm)
+
+cp -r "$GLM_INC/glm"  "$DEST/external/include/"
+#+end_src
+
+Updated layout with bundled glm:
+
+#+begin_example
+ANOTHER_REPO/
+├── CMakeLists.txt
+├── external/
+│   ├── lib/
+│   │   ├── libgeodraw.0.1.dylib
+│   │   ├── libgeodraw.1.dylib
+│   │   └── libgeodraw.dylib
+│   └── include/
+│       ├── geodraw/               ← contents of geodraw/include/geodraw/
+│       └── glm/                   ← bundled glm headers
+└── src/
+    └── main.cpp
+#+end_example
+
+Because ~INTERFACE_INCLUDE_DIRECTORIES "${GEODRAW_INC_DIR}"~ already covers
+~external/include/~, ~<glm/glm.hpp>~ resolves without any system install. The
+consumer's ~CMakeLists.txt~ needs *no* ~find_package(glm)~ and *no*
+~INTERFACE_LINK_LIBRARIES "glm::glm"~. See the /Bundled glm/ variants in Step 3.
+
+* Step 3 — CMake setup in ANOTHER_REPO
+
+** Why an IMPORTED target?
+
+An ~IMPORTED SHARED~ target is the clean CMake pattern for a vendored pre-built
+library. Consumers do ~target_link_libraries(my_app PRIVATE geodraw)~ and
+inherit include paths automatically — identical to using the
+~add_subdirectory~ mode.
+
+** Transitive dependencies
+
+The ~.dylib~ already embeds its ~LC_LOAD_DYLIB~ references to OpenGL, GLFW,
+GLEW, curl, zlib, etc. The consuming project only needs to satisfy:
+
+| Dependency | Reason |
+|------------+------------------------------------------------|
+| ~glm~      | Header-only; geodraw public headers use ~<glm/…>~ |
+
+If glm headers are bundled alongside geodraw (see Step 2), this dependency is
+already satisfied and no ~find_package(glm)~ is needed.
+
+** Option A — All in root ~CMakeLists.txt~ (small project)
+
+/With bundled glm/ (glm headers copied into ~external/include/~ in Step 2):
+
+#+begin_src cmake
+cmake_minimum_required(VERSION 3.18)
+project(another_repo CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# ── Pre-built geodraw IMPORTED target ────────────────────────────────
+set(GEODRAW_LIB_DIR  "${CMAKE_SOURCE_DIR}/external/lib")
+set(GEODRAW_INC_DIR  "${CMAKE_SOURCE_DIR}/external/include")
+
+add_library(geodraw SHARED IMPORTED GLOBAL)
+set_target_properties(geodraw PROPERTIES
+    IMPORTED_LOCATION             "${GEODRAW_LIB_DIR}/libgeodraw.1.dylib"
+    IMPORTED_SONAME               "libgeodraw.1.dylib"
+    INTERFACE_INCLUDE_DIRECTORIES "${GEODRAW_INC_DIR}"
+)
+
+# ── Your targets ─────────────────────────────────────────────────────
+add_subdirectory(src)
+#+end_src
+
+/With system glm/ (glm installed via package manager, not bundled):
+
+#+begin_src cmake
+cmake_minimum_required(VERSION 3.18)
+project(another_repo CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# ── Transitive header-only deps ──────────────────────────────────────
+find_package(glm REQUIRED)   # geodraw public headers use glm types
+
+# ── Pre-built geodraw IMPORTED target ────────────────────────────────
+set(GEODRAW_LIB_DIR  "${CMAKE_SOURCE_DIR}/external/lib")
+set(GEODRAW_INC_DIR  "${CMAKE_SOURCE_DIR}/external/include")
+
+add_library(geodraw SHARED IMPORTED GLOBAL)
+set_target_properties(geodraw PROPERTIES
+    IMPORTED_LOCATION             "${GEODRAW_LIB_DIR}/libgeodraw.1.dylib"
+    IMPORTED_SONAME               "libgeodraw.1.dylib"
+    INTERFACE_INCLUDE_DIRECTORIES "${GEODRAW_INC_DIR}"
+    INTERFACE_LINK_LIBRARIES      "glm::glm"
+)
+
+# ── Your targets ─────────────────────────────────────────────────────
+add_subdirectory(src)
+#+end_src
+
+~src/CMakeLists.txt~ (same for both variants):
+
+#+begin_src cmake
+add_executable(my_app main.cpp)
+target_link_libraries(my_app PRIVATE geodraw)
+#+end_src
+
+** Option B — Dedicated ~external/CMakeLists.txt~ (recommended for larger projects)
+
+Root ~CMakeLists.txt~ (same for both glm variants):
+
+#+begin_src cmake
+cmake_minimum_required(VERSION 3.18)
+project(another_repo CXX)
+
+set(CMAKE_CXX_STANDARD 17 CACHE STRING "")
+
+add_subdirectory(external)   # defines geodraw IMPORTED target
+add_subdirectory(src)
+#+end_src
+
+~external/CMakeLists.txt~ — /with bundled glm/:
+
+#+begin_src cmake
+set(_gd_lib "${CMAKE_CURRENT_SOURCE_DIR}/lib/libgeodraw.1.dylib")
+set(_gd_inc "${CMAKE_CURRENT_SOURCE_DIR}/include")
+
+add_library(geodraw SHARED IMPORTED GLOBAL)
+set_target_properties(geodraw PROPERTIES
+    IMPORTED_LOCATION             "${_gd_lib}"
+    IMPORTED_SONAME               "libgeodraw.1.dylib"
+    INTERFACE_INCLUDE_DIRECTORIES "${_gd_inc}"
+)
+#+end_src
+
+~external/CMakeLists.txt~ — /with system glm/:
+
+#+begin_src cmake
+find_package(glm REQUIRED)
+
+set(_gd_lib "${CMAKE_CURRENT_SOURCE_DIR}/lib/libgeodraw.1.dylib")
+set(_gd_inc "${CMAKE_CURRENT_SOURCE_DIR}/include")
+
+add_library(geodraw SHARED IMPORTED GLOBAL)
+set_target_properties(geodraw PROPERTIES
+    IMPORTED_LOCATION             "${_gd_lib}"
+    IMPORTED_SONAME               "libgeodraw.1.dylib"
+    INTERFACE_INCLUDE_DIRECTORIES "${_gd_inc}"
+    INTERFACE_LINK_LIBRARIES      "glm::glm"
+)
+#+end_src
+
+Option B is recommended for any repo with multiple subdirectories — it isolates
+the vendored library definition and keeps the root CMakeLists.txt clean.
+
+* Linux ~.so~ variant
+
+Replace ~libgeodraw.1.dylib~ with ~libgeodraw.so.1~ (built by the same CMake
+rules on Linux). The ~IMPORTED_SONAME~ must match:
+
+#+begin_src cmake
+set_target_properties(geodraw PROPERTIES
+    IMPORTED_LOCATION             "${_gd_lib_dir}/libgeodraw.so.1"
+    IMPORTED_SONAME               "libgeodraw.so.1"
+    INTERFACE_INCLUDE_DIRECTORIES "${_gd_inc}"
+    INTERFACE_LINK_LIBRARIES      "glm::glm"
+)
+#+end_src
+
+For a cross-platform build that ships both platforms' libraries:
+
+#+begin_src cmake
+set_target_properties(geodraw PROPERTIES
+    IMPORTED_LOCATION_DARWIN  "${_gd_lib_dir}/libgeodraw.1.dylib"
+    IMPORTED_LOCATION_LINUX   "${_gd_lib_dir}/libgeodraw.so.1"
+    IMPORTED_SONAME_DARWIN    "libgeodraw.1.dylib"
+    IMPORTED_SONAME_LINUX     "libgeodraw.so.1"
+    INTERFACE_INCLUDE_DIRECTORIES "${_gd_inc}"
+    INTERFACE_LINK_LIBRARIES      "glm::glm"
+)
+#+end_src
+
+* Python Package
+
+The ~_geodraw~ pybind11 extension exposes the geodraw C++ API to Python. It
+depends on ~libgeodraw.1.dylib~, which must already be vendored in
+~external/lib/~ (Steps 1–2 above).
+
+** Step P1 — Build the Python module
+
+~GEODRAW_WITH_PYTHON~ is ~ON~ by default, so no extra CMake flags are needed:
+
+#+begin_src bash
+# Inside the geodraw repo (same build directory used in Step 1):
+cmake --build build --target _geodraw
+#+end_src
+
+This produces in ~build/python/geodraw/~:
+
+| File                    | Role                                               |
+|-------------------------+----------------------------------------------------|
+| ~_geodraw.cpython-*.so~ | pybind11 extension module (~.so~ on both platforms) |
+| ~__init__.py~           | Python package wrapper                             |
+
+** Step P2 — Copy into ANOTHER_REPO
+
+#+begin_src bash
+DEST=/path/to/ANOTHER_REPO
+GD_BUILD=/path/to/geodraw/build
+
+mkdir -p "$DEST/external/python/geodraw"
+cp "$GD_BUILD/python/geodraw/__init__.py"           "$DEST/external/python/geodraw/"
+cp "$GD_BUILD/python/geodraw/_geodraw.cpython"*.so  "$DEST/external/python/geodraw/"
+#+end_src
+
+** Step P3 — Fix the rpath in the vendored ~.so~
+
+The build embeds two rpaths in ~_geodraw.so~: a relative ~@loader_path/../..~
+(pointing two directories up from the ~.so~) and an absolute path to the
+original build directory. After relocation, the relative rpath must be updated
+to reach ~external/lib/~ and the machine-specific absolute rpath must be
+removed.
+
+*macOS*:
+
+#+begin_src bash
+GD_SO="$DEST/external/python/geodraw/_geodraw.cpython"*.so
+GD_BUILD=/path/to/geodraw/build
+
+# Remove the absolute build-directory rpath baked in during compilation:
+install_name_tool -delete_rpath "$GD_BUILD"       "$GD_SO"
+# Retarget the relative rpath to external/lib/:
+install_name_tool \
+    -rpath "@loader_path/../.." "@loader_path/../../lib" \
+    "$GD_SO"
+#+end_src
+
+*Linux*:
+
+#+begin_src bash
+GD_SO="$DEST/external/python/geodraw/_geodraw.cpython"*.so
+# Replace all rpaths with a single correct relative one:
+patchelf --set-rpath '$ORIGIN/../../lib' "$GD_SO"
+#+end_src
+
+(Install ~patchelf~ via ~sudo apt install patchelf~ or ~brew install patchelf~.)
+
+** Step P4 — Import the package
+
+Set ~PYTHONPATH~ to include ~external/python/~.  No ~LD_LIBRARY_PATH~ or
+~DYLD_LIBRARY_PATH~ is needed because the rpath fix in Step P3 lets
+~_geodraw.so~ find ~libgeodraw.1.dylib~ automatically.
+
+From the shell:
+
+#+begin_src bash
+PYTHONPATH="$DEST/external/python" python3 my_script.py
+#+end_src
+
+From Python code:
+
+#+begin_src python
+import sys
+sys.path.insert(0, "/path/to/ANOTHER_REPO/external/python")
+import geodraw
+#+end_src
+
+From CMake (for projects that run Python tests or scripts via CTest):
+
+#+begin_src cmake
+set(GEODRAW_PYTHON_PATH "${CMAKE_SOURCE_DIR}/external/python")
+
+add_test(NAME my_python_test COMMAND python3 ${CMAKE_SOURCE_DIR}/src/my_test.py)
+set_tests_properties(my_python_test PROPERTIES
+    ENVIRONMENT "PYTHONPATH=${GEODRAW_PYTHON_PATH}:$ENV{PYTHONPATH}"
+)
+#+end_src
+
+** Resulting layout
+
+#+begin_example
+ANOTHER_REPO/
+├── external/
+│   ├── lib/
+│   │   ├── libgeodraw.0.1.dylib
+│   │   ├── libgeodraw.1.dylib
+│   │   └── libgeodraw.dylib
+│   ├── include/
+│   │   └── geodraw/
+│   └── python/
+│       └── geodraw/
+│           ├── __init__.py
+│           └── _geodraw.cpython-314-darwin.so   ← rpath → ../../lib/
+└── src/
+    └── my_script.py
+#+end_example
+
+** Verification
+
+#+begin_src bash
+PYTHONPATH="$DEST/external/python" python3 -c "import geodraw; print(geodraw.Key.A)"
+# Expected: Key.A
+#+end_src
+
+* Verification
+
+1. Build ANOTHER_REPO:
+   #+begin_src bash
+   cmake -B build && cmake --build build
+   #+end_src
+
+2. Confirm the library loads at runtime (macOS):
+   #+begin_src bash
+   DYLD_PRINT_LIBRARIES=1 ./build/my_app 2>&1 | grep geodraw
+   # Expected: …/external/lib/libgeodraw.1.dylib
+   #+end_src
+
+3. Confirm no extra ~-I~ or ~-L~ flags are needed beyond ~find_package(glm)~
+   (system glm) or beyond ~INTERFACE_INCLUDE_DIRECTORIES~ (bundled glm). The
+   ~IMPORTED~ target propagates include paths automatically.
+
+4. To verify the bundled-glm path works without any system glm:
+   #+begin_src bash
+   # macOS — temporarily hide system glm:
+   brew unlink glm
+   cmake -B build && cmake --build build   # must succeed via external/include/glm/
+   brew link glm
+   #+end_src
+
+* Minimal ~main.cpp~ smoke test
+
+#+begin_src cpp
+#include <geodraw/app/app.hpp>
+
+int main() {
+    geodraw::App app("vendored test", 800, 600);
+    app.run();
+}
+#+end_src

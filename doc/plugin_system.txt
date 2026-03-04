@@ -1,0 +1,226 @@
+Here's a comprehensive explanation of GeoDraw's plugin and minor mode system,
+based   on thorough exploration of the codebase.
+---
+GeoDraw Plugin & Minor Mode System
+The Two Key Concepts
+
+  Minor Mode is an Emacs-inspired concept: a named group of keybindings that can be
+  activated or deactivated at runtime. Defined in include/geodraw/app/app.hpp:
+
+  struct MinorMode {
+    std::string name;
+    std::vector<CommandInfo> commands;
+  };
+
+  A minor mode is just a container for keybindings — it has no draw/update logic of
+  its own. Multiple minor modes can be active simultaneously. When a key is pressed,
+  the app checks active minor modes in reverse activation order (last activated
+  wins).
+
+  Plugin (IAppModule) is the higher-level concept that owns behavior: draw callbacks,   update callbacks, and usually a minor mode for its keybindings. Defined in
+  include/geodraw/app/app_module.hpp:
+
+  class IAppModule {
+  public:
+      virtual void attach(App& app) = 0;
+      virtual void detach(App& app) {}
+  };
+
+  Think of it this way: a plugin creates a minor mode to hold its keybindings, but
+  the plugin is what actually does work.
+
+  ---
+  The Priority-Based Callback System
+
+  Every frame, GeoDraw runs update and draw callbacks in ascending priority order:
+
+  ┌───────────┬───────┬──────────────────────────────────────────────────┐
+  │ Priority  │ Value │                     Meaning                      │
+  ├───────────┼───────┼──────────────────────────────────────────────────┤
+  │ BASE      │ 0     │ Primary renderer — clears and rebuilds the scene │
+  ├───────────┼───────┼──────────────────────────────────────────────────┤
+  │ OVERLAY   │ 10    │ Add geometry on top of the base                  │
+  ├───────────┼───────┼──────────────────────────────────────────────────┤
+  │ BEFORE_UI │ 15    │ After scene geometry, before ImGui               │
+  ├───────────┼───────┼──────────────────────────────────────────────────┤
+  │ UI        │ 20    │ ImGui rendering                                  │
+  ├───────────┼───────┼──────────────────────────────────────────────────┤
+  │ AFTER_UI  │ 25    │ After ImGui (e.g., compositing a video frame)    │
+  └───────────┴───────┴──────────────────────────────────────────────────┘
+
+  You register callbacks with:
+  app.addUpdateCallback([&](float dt) { /* ... */ }, Priority::OVERLAY);
+  app.addDrawCallback([&]() { /* ... */ }, Priority::OVERLAY);
+
+  Important: There are deprecated setDrawCallback / setUpdateCallback methods that
+  replace any existing priority-0 callbacks. Do not use these — always use add*.
+
+  ---
+  Do Plugins Share a Scene?
+
+  This is the most nuanced part of the system. Plugins can do either:
+
+  Standalone: The plugin owns its own Scene object and renders it directly.
+  CameraTrajectoryPlugin does this — it has a private Scene scene_ and renders it in
+  its draw callback via app.getRenderer().render(scene_, app.camera). This is
+  suitable when the plugin's visuals are orthogonal to everything else.
+
+  Embedded (shared scene): The plugin takes a reference to the host app's scene and
+  adds geometry to it in its update callback. ScenarioPlugin supports both modes — in   embedded mode it accepts Scene& s in its constructor and uses Priority::OVERLAY to   add vehicle/road geometry on top of whatever the base layer drew.
+
+  Simple demo apps (like demo_hello_world.cpp) create exactly one scene:
+  app.addScene();
+  app.addUpdateCallback([&](float dt) {
+      app.scene().clear();
+      app.scene().Add(myGeometry);
+  });
+
+  A complex app like rl_gui.cpp has the earth renderer at BASE, and ScenarioPlugin
+  adds vehicles at OVERLAY into the same scene.
+
+  ---
+  Automated Panel Show/Hide: Plugin Panel Registry
+
+  For apps with multiple plugins (CameraTrajectoryPlugin, VideoCapturePlugin, etc.),
+  ImGuiPlugin provides an automated panel manager via drawPluginsPanel(). This
+  eliminates the need to write per-plugin panel draw calls and minor mode
+  activation/deactivation logic.
+
+  How it works:
+  - Each plugin calls app.registerPluginPanel() at the end of its attach().
+  - ImGuiPlugin::drawPluginsPanel() reads the registry and manages all windows.
+  - A "Plugins" checklist window lists all registered panels as checkboxes.
+
+  Registration in attach() (for plugins that opt in):
+      app.registerPluginPanel({"My Plugin", minorMode_,
+          [this, &app](void* ctx) {
+              if (ctx) ImGui::SetCurrentContext(static_cast<ImGuiContext*>(ctx));
+              drawPanelContents(app);  // contents only, no Begin/End
+          }});
+
+  In the app's ImGui callback, one call replaces all manual panel draws:
+      imgui.setImGuiCallback([&]() {
+          imgui.drawPluginsPanel();  // "Plugins" checklist + all registered panels
+      });
+
+  Behavior:
+  - "Plugins" checkbox checked   → panel visible, minor mode activated
+  - "Plugins" checkbox unchecked → panel hidden, minor mode deactivated
+  - Panel X button clicked       → panel hidden, checkbox unchecked, minor mode deactivated
+  - Panel collapsed              → minor mode deactivated
+  - Panel expanded               → minor mode activated
+  - Panels start active (panelOpen = true by default); drawPluginsPanel() activates
+    their minor modes on first draw automatically — no app.activateMinorMode() needed
+
+  Backwards compatibility:
+  - Plugins that don't call registerPluginPanel() (e.g. ScenarioPlugin) are unaffected.
+  - drawImGuiPanel() still works for standalone/direct use.
+  - The ImGui context passing requirement (libgeodraw.dylib vs main binary) is handled
+    inside the registered lambda; no special per-call handling needed in app code.
+
+  ---
+  Consistent Pattern: A Full Plugin
+
+  Here's the canonical pattern for a plugin that opts into the automated panel manager:
+
+  class MyPlugin : public IAppModule {
+  public:
+      void attach(App& app) override {
+          // 1. Create a minor mode for your keybindings
+          myMode_ = &app.createMinorMode("MyPlugin");
+
+          // 2. Register callbacks at appropriate priority
+          app.addUpdateCallback([this](float dt) { onUpdate(dt); },
+                                Priority::OVERLAY);
+          app.addDrawCallback([this]() { onDraw(); },
+                              Priority::OVERLAY);
+
+          // 3. Bind keys into the minor mode
+          app.addCmd("do-thing", [this]() { /* ... */ },
+                     "Description", GLFW_KEY_T, 0, true, *myMode_);
+          app.addToggle("show-thing", showThing_, "Toggle thing display",
+                        GLFW_KEY_S, 0, true, *myMode_);
+
+          // 4. Register with the plugin panel manager (optional, recommended)
+          app.registerPluginPanel({"My Plugin", myMode_,
+              [this](void* ctx) {
+                  if (ctx) ImGui::SetCurrentContext(static_cast<ImGuiContext*>(ctx));
+                  drawPanelContents();  // contents only, no Begin/End
+              }});
+      }
+
+      // For standalone / direct use (keeps Begin/End, tracks open state correctly)
+      void drawImGuiPanel(App& app, void* imguiCtx = nullptr) {
+          if (imguiCtx) ImGui::SetCurrentContext((ImGuiContext*)imguiCtx);
+          if (!panelOpen_) return;
+          bool expanded = ImGui::Begin("My Plugin", &panelOpen_);
+          if (expanded) drawPanelContents();
+          ImGui::End();
+          if (!panelOpen_ && myMode_) app.deactivateMinorMode(*myMode_);
+      }
+
+      MinorMode* getMinorMode() { return myMode_; }
+
+  private:
+      MinorMode* myMode_     = nullptr;
+      bool       panelOpen_  = true;
+      bool       showThing_  = true;
+      Scene      myScene_;
+
+      void drawPanelContents() {
+          // ... your UI here (no ImGui::Begin/End)
+      }
+  };
+
+  And in the app's main — zero boilerplate per plugin:
+      MyPlugin plugin;
+      app.addModule(plugin);  // activates minor modes automatically via drawPluginsPanel
+
+      ImGuiPlugin imgui(app);
+      imgui.setImGuiCallback([&]() {
+          imgui.drawPluginsPanel();  // manages all registered plugin panels
+      });
+
+  ---
+  Inconsistencies Worth Knowing
+
+  1. setDrawCallback/setUpdateCallback still exist and will silently destroy other
+  plugins' callbacks at priority 0. The deprecation comment is there, but a new user
+  who doesn't know the history could easily use them.
+  2. createMinorMode doesn't enforce unique names — if two plugins both call
+  createMinorMode("Scenario") they'd share the same mode, which would be very
+  confusing.
+  3. ScenarioPlugin opts out of registerPluginPanel intentionally — its complex
+  per-scenario activation flow is managed in rl_gui.cpp and is not suitable for
+  the automated panel manager.
+
+  ---
+  Summary
+
+  Concept: MinorMode
+  Role: Keybinding namespace, on/off state
+  Key API: createMinorMode(), activateMinorMode()
+  ────────────────────────────────────────
+  Concept: IAppModule
+  Role: Owns behavior (callbacks, scene, commands)
+  Key API: attach() / detach()
+  ────────────────────────────────────────
+  Concept: Priority
+  Role: Controls execution order each frame
+  Key API: Priority::BASE/OVERLAY/UI/AFTER_UI
+  ────────────────────────────────────────
+  Concept: Scene
+  Role: Geometry container
+  Key API: Owned by plugin or shared from app
+  ────────────────────────────────────────
+  Concept: ImGui panel
+  Role: Optional UI
+  Key API: registerPluginPanel() + drawPluginsPanel() (automated) or drawImGuiPanel() (direct)
+  ────────────────────────────────────────
+  Concept: Continuous update
+  Role: Animation / playback
+  Key API: requestContinuousUpdate("reason")
+
+  The system is clean and composable once you understand these five pieces. The main
+  gotcha for a new user is the ImGui context passing requirement when calling plugin
+  panel methods from the main binary — handled automatically when using drawPluginsPanel().

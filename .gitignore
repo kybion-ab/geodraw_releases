@@ -1,0 +1,20 @@
+# Build directory
+build/
+
+# Python
+**/__pycache__/
+*.pyc
+python/geodraw/*.so
+
+# macOS
+**/.DS_Store
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# CMake user-specific files
+CMakeUserPresets.json
