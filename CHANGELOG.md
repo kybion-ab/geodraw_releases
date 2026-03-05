@@ -3,6 +3,16 @@
 All notable changes to GeoDraw will be documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.1] — 2026-03-05
+
+### Added
+- Linux shared libraries (`.so` files) added under `lib/`, enabling Linux
+  targets to link against GeoDraw without building from source.
+
+### Fixed
+- Improved submodule support: GeoDraw can now be added as a git submodule with
+  no extra CMake configuration required.
+
 ## [0.1.0] — 2026-03-04
 
 ### Added
