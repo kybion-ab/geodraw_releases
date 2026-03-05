@@ -8,46 +8,64 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 # ----------------------
 # Options
 # ----------------------
-option(GEODRAW_WITH_IMGUI "Build demo/app targets that use ImGui" ON)
-option(GEODRAW_USE_ASAN   "Enable AddressSanitizer"               OFF)
-option(GEODRAW_WITH_PYTHON "Build Python bindings (requires pybind11)" ON)
+option(GEODRAW_WITH_IMGUI   "Build demo/app targets that use ImGui" ON)
+option(GEODRAW_USE_ASAN     "Enable AddressSanitizer"               OFF)
+option(GEODRAW_WITH_PYTHON  "Build Python bindings (requires pybind11)" ON)
 
 # ----------------------
-# glm — header-only; geodraw public headers expose glm types
-# nlohmann_json — needed by tinygltf (TINYGLTF_IMPLEMENTATION) in SDK tools
+# Determine if top-level project
 # ----------------------
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    set(_geodraw_is_top_level TRUE)
+else()
+    set(_geodraw_is_top_level FALSE)
+endif()
+
+option(GEODRAW_BUILD_APPS   "Build geodraw applications" ${_geodraw_is_top_level})
+option(GEODRAW_BUILD_TESTS  "Build geodraw tests"        ${_geodraw_is_top_level})
+
+# ----------------------
+# Dependencies
+# ----------------------
+find_package(OpenGL REQUIRED)
+find_package(glfw3 REQUIRED)
+find_package(GLEW REQUIRED)
 find_package(glm REQUIRED)
 find_package(nlohmann_json REQUIRED)
-find_package(glfw3 REQUIRED)
+find_package(CURL REQUIRED)
+find_package(ZLIB REQUIRED)
 
 # ----------------------
-# Pre-built geodraw IMPORTED target
+# Pre-built GeoDraw library (binary-only)
 # ----------------------
 add_library(geodraw SHARED IMPORTED GLOBAL)
 if(APPLE)
-    set_target_properties(geodraw PROPERTIES
-        IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/lib/macos/libgeodraw.1.dylib"
+      set_target_properties(geodraw PROPERTIES
+        IMPORTED_LOCATION "${CMAKE_CURRENT_LIST_DIR}/lib/macos/libgeodraw.1.dylib"
         IMPORTED_SONAME   "libgeodraw.1.dylib"
     )
-    set(CMAKE_BUILD_RPATH "${CMAKE_SOURCE_DIR}/lib/macos")
+    set(CMAKE_BUILD_RPATH "${CMAKE_CURRENT_LIST_DIR}/lib/macos")
+    set(GEODRAW_LIB "${CMAKE_CURRENT_LIST_DIR}/lib/macos/libgeodraw.1.dylib")
 elseif(UNIX)
     set_target_properties(geodraw PROPERTIES
-        IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/lib/linux/libgeodraw.so.1"
+        IMPORTED_LOCATION "${CMAKE_CURRENT_LIST__DIR}/lib/linux/libgeodraw.so.1"
         IMPORTED_SONAME   "libgeodraw.so.1"
     )
-    set(CMAKE_BUILD_RPATH "${CMAKE_SOURCE_DIR}/lib/linux")
+    set(CMAKE_BUILD_RPATH "${CMAKE_CURRENT_LIST_DIR}/lib/linux")
+    set(GEODRAW_LIB "${CMAKE_CURRENT_LIST_DIR}/lib/macos/libgeodraw.1.dylib")
 endif()
+
 set_target_properties(geodraw PROPERTIES
+    IMPORTED_LOCATION "${GEODRAW_LIB}"
     INTERFACE_INCLUDE_DIRECTORIES
-        "${CMAKE_SOURCE_DIR}/include;\
-${CMAKE_SOURCE_DIR}/external/imgui;\
-${CMAKE_SOURCE_DIR}/external/imgui/backends"
-    INTERFACE_LINK_LIBRARIES  "glm::glm;nlohmann_json::nlohmann_json;glfw"
+        "${CMAKE_CURRENT_LIST_DIR}/include;\
+${CMAKE_CURRENT_LIST_DIR}/external/imgui;\
+${CMAKE_CURRENT_LIST_DIR}/external/imgui/backends"
+    INTERFACE_LINK_LIBRARIES "glm::glm;nlohmann_json::nlohmann_json;glfw"
 )
 
 # ----------------------
-# ImGui static library — apps/demos call ImGui directly; the symbols are hidden
-# inside libgeodraw so we build imgui as a static lib and link it transitively.
+# ImGui static library (hidden symbols)
 # ----------------------
 if(GEODRAW_WITH_IMGUI)
     add_library(imgui STATIC
@@ -65,17 +83,6 @@ if(GEODRAW_WITH_IMGUI)
     set_property(TARGET geodraw APPEND PROPERTY
         INTERFACE_COMPILE_DEFINITIONS GEODRAW_HAS_IMGUI)
 endif()
-
-# ----------------------
-# Subdirectory detection
-# ----------------------
-if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
-    set(_geodraw_is_top_level TRUE)
-else()
-    set(_geodraw_is_top_level FALSE)
-endif()
-option(GEODRAW_BUILD_APPS  "Build geodraw applications" ${_geodraw_is_top_level})
-option(GEODRAW_BUILD_TESTS "Build geodraw tests"        ${_geodraw_is_top_level})
 
 # ----------------------
 # Tests
@@ -118,7 +125,7 @@ if(GEODRAW_BUILD_TESTS)
     add_executable(${IMAGE_TEST} tests/${IMAGE_TEST}.cpp)
     target_link_libraries(${IMAGE_TEST} PRIVATE geodraw Catch2::Catch2)
     target_compile_definitions(${IMAGE_TEST} PRIVATE
-        GEODRAW_TEST_IMAGE_PATH="${CMAKE_SOURCE_DIR}/data/images/baboon.png")
+        GEODRAW_TEST_IMAGE_PATH="${CMAKE_CURRENT_LIST_DIR}/data/images/baboon.png")
     set_target_properties(${IMAGE_TEST} PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/tests")
     if(GEODRAW_USE_ASAN)
@@ -128,8 +135,7 @@ if(GEODRAW_BUILD_TESTS)
     catch_discover_tests(${IMAGE_TEST})
 
     foreach(tool ${TOOLS})
-        add_executable(${tool} tests/${tool}.cpp
-            include/geodraw/external/stb_tinygltf_impl.cpp)
+        add_executable(${tool} tests/${tool}.cpp)
         target_link_libraries(${tool} PRIVATE geodraw)
         set_target_properties(${tool} PROPERTIES
             RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/tools")
@@ -152,7 +158,7 @@ if(GEODRAW_BUILD_TESTS)
 endif() # GEODRAW_BUILD_TESTS
 
 # ----------------------
-# Applications
+# Applications / demos
 # ----------------------
 if(GEODRAW_BUILD_APPS)
     set(APPLICATIONS
@@ -170,8 +176,7 @@ if(GEODRAW_BUILD_APPS)
     endif()
 
     foreach(application ${APPLICATIONS})
-        add_executable(${application} app/${application}.cpp
-            include/geodraw/external/stb_tinygltf_impl.cpp)
+        add_executable(${application} app/${application}.cpp)
         set_target_properties(${application} PROPERTIES
             RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
         target_link_libraries(${application} PRIVATE geodraw)
@@ -182,8 +187,7 @@ if(GEODRAW_BUILD_APPS)
     endforeach()
 
     foreach(demo ${DEMOS})
-        add_executable(${demo} demos/${demo}.cpp
-            include/geodraw/external/stb_tinygltf_impl.cpp)
+        add_executable(${demo} demos/${demo}.cpp)
         set_target_properties(${demo} PROPERTIES
             RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
         target_link_libraries(${demo} PRIVATE geodraw)
@@ -199,22 +203,24 @@ if(GEODRAW_BUILD_APPS)
 endif() # GEODRAW_BUILD_APPS
 
 # ----------------------
-# Installation rules
+# Installation rules (top-level only)
 # ----------------------
-if(APPLE)
-    install(FILES
-        lib/macos/libgeodraw.0.1.dylib
-        lib/macos/libgeodraw.1.dylib
-        lib/macos/libgeodraw.dylib
-        DESTINATION lib)
-elseif(UNIX)
-    install(FILES
-        lib/linux/libgeodraw.so.0.1
-        lib/linux/libgeodraw.so.1
-        lib/linux/libgeodraw.so
-        DESTINATION lib)
+if(_geodraw_is_top_level)
+    if(APPLE)
+        install(FILES
+            lib/macos/libgeodraw.0.1.dylib
+            lib/macos/libgeodraw.1.dylib
+            lib/macos/libgeodraw.dylib
+            DESTINATION lib)
+    elseif(UNIX)
+        install(FILES
+            lib/linux/libgeodraw.so.0.1
+            lib/linux/libgeodraw.so.1
+            lib/linux/libgeodraw.so
+            DESTINATION lib)
+    endif()
+    install(DIRECTORY include/ DESTINATION include)
 endif()
-install(DIRECTORY include/ DESTINATION include)
 
 # ----------------------
 # Python bindings (optional)

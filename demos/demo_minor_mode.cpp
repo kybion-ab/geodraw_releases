@@ -39,15 +39,15 @@ void UpdateDemoGeometry(Scene &scene, DemoGeometry &gui) {
 void addMinorMode1(App &app, MinorMode &myMode) {
   myMode = app.createMinorMode("My minor mode 1");
   app.addCmd("say-hello", [](){ std::cout << "Hello world!" << std::endl; },
-             "Say Hello World", GLFW_KEY_M, 0, true, myMode);
-  app.addCmd("toggle-myMode1", [&app, &myMode](){ app.toggleMinorMode(myMode); }, "Toggle hello minor mode", GLFW_KEY_1);
+             "Say Hello World", key(Key::M), 0, true, myMode);
+  app.addCmd("toggle-myMode1", [&app, &myMode](){ app.toggleMinorMode(myMode); }, "Toggle hello minor mode", key(Key::D1));
 }
 
 void addMinorMode2(App &app, MinorMode &myMode) {
   myMode = app.createMinorMode("My minor mode 2");
   app.addCmd("say-hi", [](){ std::cout << "Hi world!" << std::endl; },
-             "Say Hi World", GLFW_KEY_M, 0, true, myMode);
-  app.addCmd("toggle-myMode2", [&app, &myMode](){ app.toggleMinorMode(myMode); }, "Toggle hi minormode", GLFW_KEY_2);
+             "Say Hi World", key(Key::M), 0, true, myMode);
+  app.addCmd("toggle-myMode2", [&app, &myMode](){ app.toggleMinorMode(myMode); }, "Toggle hi minormode", key(Key::D2));
 }
 
 int main() {

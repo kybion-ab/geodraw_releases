@@ -42,38 +42,38 @@ private:
   geodraw::App& app_;
 };
 
-std::string EarthViewerUI::formatKeyBinding(int key, int mods) {
-  if (key < 0) return "";
+std::string EarthViewerUI::formatKeyBinding(int k, int mods) {
+  if (k < 0) return "";
 
   std::string result;
 
   // Handle modifiers
-  if (mods & GLFW_MOD_CONTROL) result += "Ctrl+";
-  if (mods & GLFW_MOD_ALT) result += "Alt+";
-  if (mods & GLFW_MOD_SHIFT) result += "Shift+";
-  if (mods & GLFW_MOD_SUPER) result += "Super+";
+  if (mods & Mod::Ctrl)  result += "Ctrl+";
+  if (mods & Mod::Alt)   result += "Alt+";
+  if (mods & Mod::Shift) result += "Shift+";
+  if (mods & Mod::Super) result += "Super+";
 
   // Handle key codes
-  if (key >= GLFW_KEY_A && key <= GLFW_KEY_Z) {
-    result += static_cast<char>('A' + (key - GLFW_KEY_A));
-  } else if (key >= GLFW_KEY_0 && key <= GLFW_KEY_9) {
-    result += static_cast<char>('0' + (key - GLFW_KEY_0));
-  } else if (key >= GLFW_KEY_F1 && key <= GLFW_KEY_F12) {
-    result += "F" + std::to_string(key - GLFW_KEY_F1 + 1);
+  if (k >= key(Key::A) && k <= key(Key::Z)) {
+    result += static_cast<char>('A' + (k - key(Key::A)));
+  } else if (k >= key(Key::D0) && k <= key(Key::D9)) {
+    result += static_cast<char>('0' + (k - key(Key::D0)));
+  } else if (k >= key(Key::F1) && k <= key(Key::F12)) {
+    result += "F" + std::to_string(k - key(Key::F1) + 1);
   } else {
-    switch (key) {
-      case GLFW_KEY_SPACE: result += "Space"; break;
-      case GLFW_KEY_ENTER: result += "Enter"; break;
-      case GLFW_KEY_TAB: result += "Tab"; break;
-      case GLFW_KEY_ESCAPE: result += "Esc"; break;
-      case GLFW_KEY_BACKSPACE: result += "Backspace"; break;
-      case GLFW_KEY_DELETE: result += "Delete"; break;
-      case GLFW_KEY_UP: result += "Up"; break;
-      case GLFW_KEY_DOWN: result += "Down"; break;
-      case GLFW_KEY_LEFT: result += "Left"; break;
-      case GLFW_KEY_RIGHT: result += "Right"; break;
-      case GLFW_KEY_EQUAL: result += "="; break;
-      case GLFW_KEY_MINUS: result += "-"; break;
+    switch (k) {
+      case key(Key::Space):     result += "Space"; break;
+      case key(Key::Enter):     result += "Enter"; break;
+      case key(Key::Tab):       result += "Tab"; break;
+      case key(Key::Escape):    result += "Esc"; break;
+      case key(Key::Backspace): result += "Backspace"; break;
+      case key(Key::Delete):    result += "Delete"; break;
+      case key(Key::Up):        result += "Up"; break;
+      case key(Key::Down):      result += "Down"; break;
+      case key(Key::Left):      result += "Left"; break;
+      case key(Key::Right):     result += "Right"; break;
+      case key(Key::Equal):     result += "="; break;
+      case key(Key::Minus):     result += "-"; break;
       default: result += "?"; break;
     }
   }
@@ -247,7 +247,7 @@ int main(int argc, char* argv[]) {
     ShapeEditor shapeEditor;
 
     // Register commands
-    app.addToggle("toggle-info", showInfo, "Toggle info overlay", GLFW_KEY_I);
+    app.addToggle("toggle-info", showInfo, "Toggle info overlay", key(Key::I));
 
     app.addCmd("next-location", [&]() {
         currentLocation = (currentLocation + 1) % locations.size();
@@ -255,7 +255,7 @@ int main(int argc, char* argv[]) {
         earth.setReference(GeoReference(GeoCoord(loc.lat, loc.lon, 0.0)));
         app.camera.setGlobeTarget(loc.lat, loc.lon);
         std::cout << "Jumped to: " << loc.name << std::endl;
-    }, "Jump to next location", GLFW_KEY_N);
+    }, "Jump to next location", key(Key::N));
 
     app.addCmd("prev-location", [&]() {
         currentLocation = (currentLocation + locations.size() - 1) % locations.size();
@@ -263,7 +263,7 @@ int main(int argc, char* argv[]) {
         earth.setReference(GeoReference(GeoCoord(loc.lat, loc.lon, 0.0)));
         app.camera.setGlobeTarget(loc.lat, loc.lon);
         std::cout << "Jumped to: " << loc.name << std::endl;
-    }, "Jump to previous location", GLFW_KEY_P);
+    }, "Jump to previous location", key(Key::P));
 
     auto cycleRasterLayer = [&]() {
         auto all = provider->availableLayers();
@@ -279,33 +279,33 @@ int main(int argc, char* argv[]) {
         std::cout << "Raster layer: " << rasterLayers[idx].displayName << std::endl;
     };
     app.addCmd("cycle-raster-layer", cycleRasterLayer,
-               "Cycle raster base layer", GLFW_KEY_L, 0, true, layersMode);
+               "Cycle raster base layer", key(Key::L), 0, true, layersMode);
 
     app.addToggle("toggle-vector-overlay", vectorOverlayEnabled,
-                  "Toggle streets vector overlay", GLFW_KEY_V, 0, true, layersMode);
-    app.addToggle("toggle-buildings", showBuildings, "Toggle buildings", GLFW_KEY_B, 0, true, layersMode);
-    app.addToggle("toggle-roads", showRoads, "Toggle roads/streets", GLFW_KEY_R, 0, true, layersMode);
-    app.addToggle("toggle-3d-buildings", show3DBuildings, "Toggle 3D building extrusion", GLFW_KEY_E, 0, true, layersMode);
+                  "Toggle streets vector overlay", key(Key::V), 0, true, layersMode);
+    app.addToggle("toggle-buildings", showBuildings, "Toggle buildings", key(Key::B), 0, true, layersMode);
+    app.addToggle("toggle-roads", showRoads, "Toggle roads/streets", key(Key::R), 0, true, layersMode);
+    app.addToggle("toggle-3d-buildings", show3DBuildings, "Toggle 3D building extrusion", key(Key::E), 0, true, layersMode);
 
     app.addCmd("increase-lod", [&]() {
         float bias = earth.getLodBias() * 1.5f;
         if (bias > 4.0f) bias = 4.0f;
         earth.setLodBias(bias);
         std::cout << "LOD bias: " << bias << std::endl;
-    }, "Increase LOD detail", GLFW_KEY_EQUAL);
+    }, "Increase LOD detail", key(Key::Equal));
 
     app.addCmd("decrease-lod", [&]() {
         float bias = earth.getLodBias() / 1.5f;
         if (bias < 0.25f) bias = 0.25f;
         earth.setLodBias(bias);
         std::cout << "LOD bias: " << bias << std::endl;
-    }, "Decrease LOD detail", GLFW_KEY_MINUS);
+    }, "Decrease LOD detail", key(Key::Minus));
 
     app.addToggle("toggle-textures", showTextures,
-                  "Toggle texture rendering", GLFW_KEY_T, 0, true, layersMode);
+                  "Toggle texture rendering", key(Key::T), 0, true, layersMode);
 
-    app.addToggle("toggle-tile-debug", showTileDebug, "Toggle tile debug (wireframe + labels)", GLFW_KEY_D);
-    app.addToggle("toggle-terrain", terrainEnabled, "Toggle 3D terrain mesh", GLFW_KEY_3, 0, true, layersMode);
+    app.addToggle("toggle-tile-debug", showTileDebug, "Toggle tile debug (wireframe + labels)", key(Key::D));
+    app.addToggle("toggle-terrain", terrainEnabled, "Toggle 3D terrain mesh", key(Key::D3), 0, true, layersMode);
 
     app.addCmd("print-coords", [&]() {
         // In GLOBE mode, get target position from camera
@@ -318,7 +318,7 @@ int main(int argc, char* argv[]) {
                   << ", alt=" << geo.altitude << " m" << std::endl;
         std::cout << "ECEF: (" << ecef.x << ", " << ecef.y << ", " << ecef.z << ") m" << std::endl;
         std::cout << "Altitude: " << app.camera.globeAltitude << " m" << std::endl;
-    }, "Print target point coordinates (WGS84/ECEF)", GLFW_KEY_C);
+    }, "Print target point coordinates (WGS84/ECEF)", key(Key::C));
 
     // Register shape editor as a module (registers commands, OVERLAY callbacks, plugin panel)
     app.addModule(shapeEditor);
@@ -558,7 +558,7 @@ Locations: Gothenburg, San Francisco, New York, London, Tokyo, Sydney, Paris, Ca
 
     // Register Layers as a plugin panel so drawPluginsPanel() can manage it
     app.registerPluginPanel({"Layers", &layersMode,
-        [&](void* /*ctx*/) { drawLayersPanel(); },
+        [&](void* ctx) { ImGui::SetCurrentContext((ImGuiContext*)ctx); drawLayersPanel(); },
         /* panelOpen= */ true});
 
     // Create UI helper

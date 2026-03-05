@@ -159,14 +159,14 @@ int main(int argc, char* argv[]) {
         earth.setReference(GeoReference(GeoCoord(locations[curLoc].lat, locations[curLoc].lon, 0)));
         app.camera.setGlobeTarget(locations[curLoc].lat, locations[curLoc].lon);
         std::cout << "Jumped to: " << locations[curLoc].name << "\n";
-    }, "Jump to next location", GLFW_KEY_N);
+    }, "Jump to next location", key(Key::N));
 
     app.addCmd("prev-location", [&]() {
         curLoc = (curLoc + int(locations.size()) - 1) % int(locations.size());
         earth.setReference(GeoReference(GeoCoord(locations[curLoc].lat, locations[curLoc].lon, 0)));
         app.camera.setGlobeTarget(locations[curLoc].lat, locations[curLoc].lon);
         std::cout << "Jumped to: " << locations[curLoc].name << "\n";
-    }, "Jump to previous location", GLFW_KEY_M);
+    }, "Jump to previous location", key(Key::M));
 
     app.addCmd("pick-scenario", [&]() {
         if (scenarioPins.empty()) {
@@ -189,7 +189,7 @@ int main(int argc, char* argv[]) {
             app.camera.setGlobeTarget(pin.location.latitude, pin.location.longitude);
             app.camera.setGlobeAltitude(pin.radius * 3.0);
         }
-    }, "Pick nearest scenario", GLFW_KEY_P);
+    }, "Pick nearest scenario", key(Key::P));
 
     app.addCmd("close-scenario", [&]() {
         if (scenario.getMinorMode() &&
@@ -197,15 +197,15 @@ int main(int argc, char* argv[]) {
             app.deactivateMinorMode(*const_cast<MinorMode*>(scenario.getMinorMode()));
             std::cout << "Closed scenario view\n";
         }
-    }, "Close scenario view", GLFW_KEY_ESCAPE);
+    }, "Close scenario view", key(Key::Escape));
 
-    app.addToggle("toggle-terrain", terrainEnabled, "Toggle 3D terrain", GLFW_KEY_3);
-    app.addToggle("toggle-pins",    showPins,        "Toggle scenario pins", GLFW_KEY_I);
-    app.addToggle("toggle-earth",   showEarth,       "Toggle earth layer",   GLFW_KEY_E);
+    app.addToggle("toggle-terrain", terrainEnabled, "Toggle 3D terrain", key(Key::D3));
+    app.addToggle("toggle-pins",    showPins,        "Toggle scenario pins", key(Key::I));
+    app.addToggle("toggle-earth",   showEarth,       "Toggle earth layer",   key(Key::E));
 
     bool debugSceneInfo = false;
     app.addCmd("debug-scene-info", [&debugSceneInfo]() { debugSceneInfo = true; },
-               "Print scene debug info", GLFW_KEY_F1);
+               "Print scene debug info", key(Key::F1));
 
     // -------------------------------------------------------------------------
     // Attach scenario plugin (registers OVERLAY update callback + minor mode)
@@ -312,9 +312,9 @@ view them as pins on the globe, and load them for playback.
         // Render pins / clusters as screen-space circles
         if (showPins && !scenarioPins.empty()) {
             ImDrawList* dl = ImGui::GetBackgroundDrawList();
-            int winW, winH, fbW, fbH;
-            glfwGetWindowSize(app.getWindow(), &winW, &winH);
-            glfwGetFramebufferSize(app.getWindow(), &fbW, &fbH);
+            glm::ivec2 fbSize = app.getFramebufferSize();
+            int fbW = fbSize.x, fbH = fbSize.y;
+            int winW = app.getWidth(), winH = app.getHeight();
             float sx = float(winW)/float(fbW), sy = float(winH)/float(fbH);
 
             for (const auto& c : markerClusterer.getClusters()) {
@@ -333,11 +333,11 @@ view them as pins on the globe, and load them for playback.
 
         // Ray picking for tooltips
         if (!ImGui::GetIO().WantCaptureMouse) {
-            double mx, my;
-            glfwGetCursorPos(app.getWindow(), &mx, &my);
-            int winW, winH, fbW, fbH;
-            glfwGetWindowSize(app.getWindow(), &winW, &winH);
-            glfwGetFramebufferSize(app.getWindow(), &fbW, &fbH);
+            glm::dvec2 cur = app.getCursorPos();
+            double mx = cur.x, my = cur.y;
+            glm::ivec2 fbSize = app.getFramebufferSize();
+            int fbW = fbSize.x, fbH = fbSize.y;
+            int winW = app.getWidth(), winH = app.getHeight();
             float sx = float(fbW)/float(winW), sy = float(fbH)/float(winH);
             float fbmx = float(mx)*sx, fbmy = float(my)*sy;
 
@@ -364,7 +364,7 @@ view them as pins on the globe, and load them for playback.
                 }
                 (void)scaleX; (void)scaleY;
                 static bool wasDown = false;
-                bool down = glfwGetMouseButton(app.getWindow(), GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
+                bool down = app.isMouseButtonPressed(0);
                 if (hov && down && !wasDown) {
                     ECEFCoord ce(hov->ecefCenter.x, hov->ecefCenter.y, hov->ecefCenter.z);
                     GeoCoord cg = ecefToGeo(ce).toDegrees();

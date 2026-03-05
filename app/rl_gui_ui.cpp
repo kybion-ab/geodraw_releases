@@ -15,7 +15,6 @@
 
 #ifdef GEODRAW_HAS_IMGUI
 #include <imgui.h>
-#include <GLFW/glfw3.h>
 #endif
 
 #include <nlohmann/json.hpp>
@@ -327,25 +326,25 @@ void RLGuiUI::drawFilterPanel() {
     ImGui::End();
 }
 
-std::string RLGuiUI::formatKeyBinding(int key, int mods) {
-    if (key < 0) return "";
+std::string RLGuiUI::formatKeyBinding(int k, int mods) {
+    if (k < 0) return "";
     std::string r;
-    if (mods & GLFW_MOD_CONTROL) r += "Ctrl+";
-    if (mods & GLFW_MOD_ALT)     r += "Alt+";
-    if (mods & GLFW_MOD_SHIFT)   r += "Shift+";
-    if (mods & GLFW_MOD_SUPER)   r += "Super+";
-    if (key >= GLFW_KEY_A && key <= GLFW_KEY_Z)
-        r += static_cast<char>('A' + (key - GLFW_KEY_A));
-    else if (key >= GLFW_KEY_0 && key <= GLFW_KEY_9)
-        r += static_cast<char>('0' + (key - GLFW_KEY_0));
-    else if (key >= GLFW_KEY_F1 && key <= GLFW_KEY_F12)
-        r += "F" + std::to_string(key - GLFW_KEY_F1 + 1);
-    else switch (key) {
-        case GLFW_KEY_SPACE:  r += "Space"; break;
-        case GLFW_KEY_ENTER:  r += "Enter"; break;
-        case GLFW_KEY_TAB:    r += "Tab";   break;
-        case GLFW_KEY_ESCAPE: r += "Esc";   break;
-        default:              r += "?";     break;
+    if (mods & Mod::Ctrl)  r += "Ctrl+";
+    if (mods & Mod::Alt)   r += "Alt+";
+    if (mods & Mod::Shift) r += "Shift+";
+    if (mods & Mod::Super) r += "Super+";
+    if (k >= key(Key::A) && k <= key(Key::Z))
+        r += static_cast<char>('A' + (k - key(Key::A)));
+    else if (k >= key(Key::D0) && k <= key(Key::D9))
+        r += static_cast<char>('0' + (k - key(Key::D0)));
+    else if (k >= key(Key::F1) && k <= key(Key::F12))
+        r += "F" + std::to_string(k - key(Key::F1) + 1);
+    else switch (k) {
+        case key(Key::Space):  r += "Space"; break;
+        case key(Key::Enter):  r += "Enter"; break;
+        case key(Key::Tab):    r += "Tab";   break;
+        case key(Key::Escape): r += "Esc";   break;
+        default:               r += "?";     break;
     }
     return r;
 }

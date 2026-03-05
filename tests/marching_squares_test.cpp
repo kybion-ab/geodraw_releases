@@ -186,38 +186,38 @@ int main() {
     }
 
     // Register controls
-    app.addToggle("", gui.showFilled, "Toggle filled/wireframe rendering", GLFW_KEY_F);
-    app.addToggle("", gui.showContours, "Toggle contour visibility"      , GLFW_KEY_C);
+    app.addToggle("", gui.showFilled, "Toggle filled/wireframe rendering", key(Key::F));
+    app.addToggle("", gui.showContours, "Toggle contour visibility"      , key(Key::C));
 
     app.addCmd("increase-threshold", [&]() {
       gui.threshold = std::min(255.0f, gui.threshold + 10.0f);
       gui.updateExtraction();
       std::cout << "Threshold: " << gui.threshold << "\n";
-    }, "Increase threshold (+10)", GLFW_KEY_UP);
+    }, "Increase threshold (+10)", key(Key::Up));
 
     app.addCmd("decrease-threshold", [&]() {
       gui.threshold = std::max(0.0f, gui.threshold - 10.0f);
       gui.updateExtraction();
       std::cout << "Threshold: " << gui.threshold << "\n";
-    }, "Decrease threshold (-10)", GLFW_KEY_DOWN);
+    }, "Decrease threshold (-10)", key(Key::Down));
 
     app.addCmd("increase-epsilon", [&]() {
       gui.simplifyEpsilon = std::min(10.0f, gui.simplifyEpsilon + 0.5f);
       gui.updateExtraction();
       std::cout << "Simplify epsilon: " << gui.simplifyEpsilon << "\n";
-    }, "Increase simplification (+0.5)", GLFW_KEY_RIGHT);
+    }, "Increase simplification (+0.5)", key(Key::Right));
 
     app.addCmd("decrease-epsilon", [&]() {
       gui.simplifyEpsilon = std::max(0.0f, gui.simplifyEpsilon - 0.5f);
       gui.updateExtraction();
       std::cout << "Simplify epsilon: " << gui.simplifyEpsilon << "\n";
-    }, "Decrease simplification (-0.5)", GLFW_KEY_LEFT);
+    }, "Decrease simplification (-0.5)", key(Key::Left));
 
     app.addCmd("toggle-simplification", [&]() {
       gui.simplifyEnabled = !gui.simplifyEnabled;
       gui.updateExtraction();
       std::cout << "Simplification " << (gui.simplifyEnabled ? "enabled" : "disabled") << "\n";
-    }, "Toggle Douglas-Peucker simplification", GLFW_KEY_S);
+    }, "Toggle Douglas-Peucker simplification", key(Key::S));
 
     app.setDocstring(R"(=== Marching Squares Test ===
 

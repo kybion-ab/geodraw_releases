@@ -55,8 +55,8 @@ int main() {
   // -------------------------------------------------------------------------
   app.addCmd("rotate-slightly", [&](){rotateSlightly(geometry.triangle);},
              "Rotate the triangle slightly",
-             GLFW_KEY_R, 0, true);
-  app.addToggle("toggle-triangle", geometry.showTriangle, "Toggle triangle", GLFW_KEY_T);
+             key(Key::R), 0, true);
+  app.addToggle("toggle-triangle", geometry.showTriangle, "Toggle triangle", key(Key::T));
 
   app.addUpdateCallback([&](float /*dt*/) {
     UpdateDemoGeometry(app.scene(), geometry);

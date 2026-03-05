@@ -177,7 +177,7 @@ int main() {
   gui.init();
 
   // Register render mode toggle
-  app.addToggle("", gui.showFilled, "Toggle filled/wireframe mode", GLFW_KEY_F);
+  app.addToggle("", gui.showFilled, "Toggle filled/wireframe mode", key(Key::F));
 
   app.setDocstring(docstring());
 

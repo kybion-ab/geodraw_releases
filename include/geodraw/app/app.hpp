@@ -32,7 +32,8 @@
 #include <unistd.h>
 #endif
 #include "geodraw/external/glad/include/glad.h"
-#include <GLFW/glfw3.h>
+#include "geodraw/app/key.hpp"
+struct GLFWwindow;
 #include <glm/glm.hpp>
 
 #include "geodraw/camera/camera.hpp"
@@ -55,7 +56,7 @@ class App;
 /// Used by MinorMode, App internal storage, and the getCommands() public API.
 struct GEODRAW_API CommandInfo {
   int key = -1;       // Hotkey (-1 = none)
-  int mods = 0;       // Required modifier keys (GLFW_MOD_* flags, 0 = none)
+  int mods = 0;       // Required modifier keys (geodraw::Mod::* flags, 0 = none)
   std::string name;
   std::string docstring;
   std::string type;               // "command" or "toggle"
@@ -256,8 +257,15 @@ public:
   int getHeight() const { return height; }
 
   // Accessor methods for plugin pattern
-  GLFWwindow *getWindow() const { return window; }
+  GLFWwindow *getWindow() const;
   DrawCallback getDrawCallback() const;
+
+  // HiDPI-aware framebuffer size in physical pixels
+  glm::ivec2 getFramebufferSize() const;
+  // Cursor position in logical window coordinates
+  glm::dvec2 getCursorPos() const;
+  // True if mouse button is currently pressed (0=left, 1=right, 2=middle)
+  bool isMouseButtonPressed(int button) const;
   Renderer &getRenderer() { return *renderer; }
 
   // Ruler control

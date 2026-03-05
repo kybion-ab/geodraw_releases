@@ -104,9 +104,9 @@ int main() {
     });
 
     // Commands and controls
-    app.addToggle("", useGLB, "Toggle GLB rendering"        , GLFW_KEY_G);
-    app.addToggle("", showVelocity, "Toggle velocity arrows", GLFW_KEY_V);
-    app.addToggle("", showBounds, "Toggle bounding boxes"   , GLFW_KEY_B);
+    app.addToggle("", useGLB, "Toggle GLB rendering"        , key(Key::G));
+    app.addToggle("", showVelocity, "Toggle velocity arrows", key(Key::V));
+    app.addToggle("", showBounds, "Toggle bounding boxes"   , key(Key::B));
 
     app.setDocstring(R"(=== Vehicle GLB Demo ===
 

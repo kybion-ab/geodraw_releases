@@ -32,7 +32,7 @@
 #include "geodraw/ui/tooltip_system.hpp"
 #endif
 
-#include <GLFW/glfw3.h>
+#include "geodraw/app/key.hpp"
 
 #include <vector>
 #include <tuple>
@@ -1311,57 +1311,58 @@ Use Q or ESC to close. Mouse: drag=orbit, scroll=zoom, right-drag=pan.
 
     auto key_ns = py::module_::import("types").attr("SimpleNamespace")();
 
+    using geodraw::Key;
     // Letters
-    key_ns.attr("A") = GLFW_KEY_A;  key_ns.attr("B") = GLFW_KEY_B;
-    key_ns.attr("C") = GLFW_KEY_C;  key_ns.attr("D") = GLFW_KEY_D;
-    key_ns.attr("E") = GLFW_KEY_E;  key_ns.attr("F") = GLFW_KEY_F;
-    key_ns.attr("G") = GLFW_KEY_G;  key_ns.attr("H") = GLFW_KEY_H;
-    key_ns.attr("I") = GLFW_KEY_I;  key_ns.attr("J") = GLFW_KEY_J;
-    key_ns.attr("K") = GLFW_KEY_K;  key_ns.attr("L") = GLFW_KEY_L;
-    key_ns.attr("M") = GLFW_KEY_M;  key_ns.attr("N") = GLFW_KEY_N;
-    key_ns.attr("O") = GLFW_KEY_O;  key_ns.attr("P") = GLFW_KEY_P;
-    key_ns.attr("Q") = GLFW_KEY_Q;  key_ns.attr("R") = GLFW_KEY_R;
-    key_ns.attr("S") = GLFW_KEY_S;  key_ns.attr("T") = GLFW_KEY_T;
-    key_ns.attr("U") = GLFW_KEY_U;  key_ns.attr("V") = GLFW_KEY_V;
-    key_ns.attr("W") = GLFW_KEY_W;  key_ns.attr("X") = GLFW_KEY_X;
-    key_ns.attr("Y") = GLFW_KEY_Y;  key_ns.attr("Z") = GLFW_KEY_Z;
+    key_ns.attr("A") = geodraw::key(Key::A);  key_ns.attr("B") = geodraw::key(Key::B);
+    key_ns.attr("C") = geodraw::key(Key::C);  key_ns.attr("D") = geodraw::key(Key::D);
+    key_ns.attr("E") = geodraw::key(Key::E);  key_ns.attr("F") = geodraw::key(Key::F);
+    key_ns.attr("G") = geodraw::key(Key::G);  key_ns.attr("H") = geodraw::key(Key::H);
+    key_ns.attr("I") = geodraw::key(Key::I);  key_ns.attr("J") = geodraw::key(Key::J);
+    key_ns.attr("K") = geodraw::key(Key::K);  key_ns.attr("L") = geodraw::key(Key::L);
+    key_ns.attr("M") = geodraw::key(Key::M);  key_ns.attr("N") = geodraw::key(Key::N);
+    key_ns.attr("O") = geodraw::key(Key::O);  key_ns.attr("P") = geodraw::key(Key::P);
+    key_ns.attr("Q") = geodraw::key(Key::Q);  key_ns.attr("R") = geodraw::key(Key::R);
+    key_ns.attr("S") = geodraw::key(Key::S);  key_ns.attr("T") = geodraw::key(Key::T);
+    key_ns.attr("U") = geodraw::key(Key::U);  key_ns.attr("V") = geodraw::key(Key::V);
+    key_ns.attr("W") = geodraw::key(Key::W);  key_ns.attr("X") = geodraw::key(Key::X);
+    key_ns.attr("Y") = geodraw::key(Key::Y);  key_ns.attr("Z") = geodraw::key(Key::Z);
 
     // Digits
-    key_ns.attr("D0") = GLFW_KEY_0; key_ns.attr("D1") = GLFW_KEY_1;
-    key_ns.attr("D2") = GLFW_KEY_2; key_ns.attr("D3") = GLFW_KEY_3;
-    key_ns.attr("D4") = GLFW_KEY_4; key_ns.attr("D5") = GLFW_KEY_5;
-    key_ns.attr("D6") = GLFW_KEY_6; key_ns.attr("D7") = GLFW_KEY_7;
-    key_ns.attr("D8") = GLFW_KEY_8; key_ns.attr("D9") = GLFW_KEY_9;
+    key_ns.attr("D0") = geodraw::key(Key::D0); key_ns.attr("D1") = geodraw::key(Key::D1);
+    key_ns.attr("D2") = geodraw::key(Key::D2); key_ns.attr("D3") = geodraw::key(Key::D3);
+    key_ns.attr("D4") = geodraw::key(Key::D4); key_ns.attr("D5") = geodraw::key(Key::D5);
+    key_ns.attr("D6") = geodraw::key(Key::D6); key_ns.attr("D7") = geodraw::key(Key::D7);
+    key_ns.attr("D8") = geodraw::key(Key::D8); key_ns.attr("D9") = geodraw::key(Key::D9);
 
     // Special keys
-    key_ns.attr("NONE")      = -1;
-    key_ns.attr("SPACE")     = GLFW_KEY_SPACE;
-    key_ns.attr("ENTER")     = GLFW_KEY_ENTER;
-    key_ns.attr("ESCAPE")    = GLFW_KEY_ESCAPE;
-    key_ns.attr("BACKSPACE")  = GLFW_KEY_BACKSPACE;
-    key_ns.attr("TAB")       = GLFW_KEY_TAB;
-    key_ns.attr("DELETE")    = GLFW_KEY_DELETE;
-    key_ns.attr("INSERT")    = GLFW_KEY_INSERT;
-    key_ns.attr("HOME")      = GLFW_KEY_HOME;
-    key_ns.attr("END")       = GLFW_KEY_END;
-    key_ns.attr("PAGE_UP")   = GLFW_KEY_PAGE_UP;
-    key_ns.attr("PAGE_DOWN") = GLFW_KEY_PAGE_DOWN;
-    key_ns.attr("EQUAL")     = GLFW_KEY_EQUAL;
-    key_ns.attr("MINUS")     = GLFW_KEY_MINUS;
+    key_ns.attr("NONE")      = geodraw::key(Key::None);
+    key_ns.attr("SPACE")     = geodraw::key(Key::Space);
+    key_ns.attr("ENTER")     = geodraw::key(Key::Enter);
+    key_ns.attr("ESCAPE")    = geodraw::key(Key::Escape);
+    key_ns.attr("BACKSPACE")  = geodraw::key(Key::Backspace);
+    key_ns.attr("TAB")       = geodraw::key(Key::Tab);
+    key_ns.attr("DELETE")    = geodraw::key(Key::Delete);
+    key_ns.attr("INSERT")    = geodraw::key(Key::Insert);
+    key_ns.attr("HOME")      = geodraw::key(Key::Home);
+    key_ns.attr("END")       = geodraw::key(Key::End);
+    key_ns.attr("PAGE_UP")   = geodraw::key(Key::PageUp);
+    key_ns.attr("PAGE_DOWN") = geodraw::key(Key::PageDown);
+    key_ns.attr("EQUAL")     = geodraw::key(Key::Equal);
+    key_ns.attr("MINUS")     = geodraw::key(Key::Minus);
 
     // Arrow keys
-    key_ns.attr("LEFT")      = GLFW_KEY_LEFT;
-    key_ns.attr("RIGHT")     = GLFW_KEY_RIGHT;
-    key_ns.attr("UP")        = GLFW_KEY_UP;
-    key_ns.attr("DOWN")      = GLFW_KEY_DOWN;
+    key_ns.attr("LEFT")      = geodraw::key(Key::Left);
+    key_ns.attr("RIGHT")     = geodraw::key(Key::Right);
+    key_ns.attr("UP")        = geodraw::key(Key::Up);
+    key_ns.attr("DOWN")      = geodraw::key(Key::Down);
 
     // Function keys
-    key_ns.attr("F1")  = GLFW_KEY_F1;  key_ns.attr("F2")  = GLFW_KEY_F2;
-    key_ns.attr("F3")  = GLFW_KEY_F3;  key_ns.attr("F4")  = GLFW_KEY_F4;
-    key_ns.attr("F5")  = GLFW_KEY_F5;  key_ns.attr("F6")  = GLFW_KEY_F6;
-    key_ns.attr("F7")  = GLFW_KEY_F7;  key_ns.attr("F8")  = GLFW_KEY_F8;
-    key_ns.attr("F9")  = GLFW_KEY_F9;  key_ns.attr("F10") = GLFW_KEY_F10;
-    key_ns.attr("F11") = GLFW_KEY_F11; key_ns.attr("F12") = GLFW_KEY_F12;
+    key_ns.attr("F1")  = geodraw::key(Key::F1);  key_ns.attr("F2")  = geodraw::key(Key::F2);
+    key_ns.attr("F3")  = geodraw::key(Key::F3);  key_ns.attr("F4")  = geodraw::key(Key::F4);
+    key_ns.attr("F5")  = geodraw::key(Key::F5);  key_ns.attr("F6")  = geodraw::key(Key::F6);
+    key_ns.attr("F7")  = geodraw::key(Key::F7);  key_ns.attr("F8")  = geodraw::key(Key::F8);
+    key_ns.attr("F9")  = geodraw::key(Key::F9);  key_ns.attr("F10") = geodraw::key(Key::F10);
+    key_ns.attr("F11") = geodraw::key(Key::F11); key_ns.attr("F12") = geodraw::key(Key::F12);
 
     m.attr("Key") = key_ns;
 
@@ -1370,11 +1371,11 @@ Use Q or ESC to close. Mouse: drag=orbit, scroll=zoom, right-drag=pan.
     // -------------------------------------------------------------------------
 
     auto mod_ns = py::module_::import("types").attr("SimpleNamespace")();
-    mod_ns.attr("NONE")  = 0;
-    mod_ns.attr("SHIFT") = GLFW_MOD_SHIFT;
-    mod_ns.attr("CTRL")  = GLFW_MOD_CONTROL;
-    mod_ns.attr("ALT")   = GLFW_MOD_ALT;
-    mod_ns.attr("SUPER") = GLFW_MOD_SUPER;
+    mod_ns.attr("NONE")  = geodraw::Mod::None;
+    mod_ns.attr("SHIFT") = geodraw::Mod::Shift;
+    mod_ns.attr("CTRL")  = geodraw::Mod::Ctrl;
+    mod_ns.attr("ALT")   = geodraw::Mod::Alt;
+    mod_ns.attr("SUPER") = geodraw::Mod::Super;
     m.attr("Mod") = mod_ns;
 
     // -------------------------------------------------------------------------

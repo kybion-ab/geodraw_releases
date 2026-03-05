@@ -12,9 +12,7 @@
 
 #include "geodraw/external/glad/include/glad.h"  // Include glad before ImGui to avoid OpenGL header conflicts
 #include <imgui.h>
-#include <imgui_impl_glfw.h>
-#include <imgui_impl_opengl3.h>
-#include <GLFW/glfw3.h>
+struct GLFWwindow;
 #include <functional>
 #include <string>
 

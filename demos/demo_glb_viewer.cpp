@@ -190,24 +190,24 @@ int main() {
     }
 
     app.addCmd("next-model", [&](){ nextModel(state); },
-               "Switch to next model", GLFW_KEY_RIGHT);
+               "Switch to next model", key(Key::Right));
     app.addCmd("prev-model", [&](){ prevModel(state); },
-               "Switch to previous model", GLFW_KEY_LEFT);
+               "Switch to previous model", key(Key::Left));
 
-    app.addCmd("select-model-1", [&](){ selectModel(state, 1); }, "Select model 1", GLFW_KEY_1);
-    app.addCmd("select-model-2", [&](){ selectModel(state, 2); }, "Select model 2", GLFW_KEY_2);
-    app.addCmd("select-model-3", [&](){ selectModel(state, 3); }, "Select model 3", GLFW_KEY_3);
-    app.addCmd("select-model-4", [&](){ selectModel(state, 4); }, "Select model 4", GLFW_KEY_4);
-    app.addCmd("select-model-5", [&](){ selectModel(state, 5); }, "Select model 5", GLFW_KEY_5);
-    app.addCmd("select-model-6", [&](){ selectModel(state, 6); }, "Select model 6", GLFW_KEY_6);
-    app.addCmd("select-model-7", [&](){ selectModel(state, 7); }, "Select model 7", GLFW_KEY_7);
-    app.addCmd("select-model-8", [&](){ selectModel(state, 8); }, "Select model 8", GLFW_KEY_8);
+    app.addCmd("select-model-1", [&](){ selectModel(state, 1); }, "Select model 1", key(Key::D1));
+    app.addCmd("select-model-2", [&](){ selectModel(state, 2); }, "Select model 2", key(Key::D2));
+    app.addCmd("select-model-3", [&](){ selectModel(state, 3); }, "Select model 3", key(Key::D3));
+    app.addCmd("select-model-4", [&](){ selectModel(state, 4); }, "Select model 4", key(Key::D4));
+    app.addCmd("select-model-5", [&](){ selectModel(state, 5); }, "Select model 5", key(Key::D5));
+    app.addCmd("select-model-6", [&](){ selectModel(state, 6); }, "Select model 6", key(Key::D6));
+    app.addCmd("select-model-7", [&](){ selectModel(state, 7); }, "Select model 7", key(Key::D7));
+    app.addCmd("select-model-8", [&](){ selectModel(state, 8); }, "Select model 8", key(Key::D8));
 
-    app.addToggle("", state.wireframeMode, "Toggle wireframe mode", GLFW_KEY_W);
-    app.addToggle("", state.showBounds,    "Toggle bounding box",   GLFW_KEY_B);
+    app.addToggle("", state.wireframeMode, "Toggle wireframe mode", key(Key::W));
+    app.addToggle("", state.showBounds,    "Toggle bounding box",   key(Key::B));
 
-    app.addCmd("increase-alpha", [&](){ adjustAlpha(state,  0.1f); }, "Increase transparency", GLFW_KEY_EQUAL);
-    app.addCmd("decrease-alpha", [&](){ adjustAlpha(state, -0.1f); }, "Decrease transparency", GLFW_KEY_MINUS);
+    app.addCmd("increase-alpha", [&](){ adjustAlpha(state,  0.1f); }, "Increase transparency", key(Key::Equal));
+    app.addCmd("decrease-alpha", [&](){ adjustAlpha(state, -0.1f); }, "Decrease transparency", key(Key::Minus));
 
     // Frame camera to show the first model
     {
