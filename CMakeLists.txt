@@ -40,7 +40,7 @@ find_package(ZLIB REQUIRED)
 # ----------------------
 add_library(geodraw SHARED IMPORTED GLOBAL)
 if(APPLE)
-      set_target_properties(geodraw PROPERTIES
+    set_target_properties(geodraw PROPERTIES
         IMPORTED_LOCATION "${CMAKE_CURRENT_LIST_DIR}/lib/macos/libgeodraw.1.dylib"
         IMPORTED_SONAME   "libgeodraw.1.dylib"
     )
@@ -52,7 +52,7 @@ elseif(UNIX)
         IMPORTED_SONAME   "libgeodraw.so.1"
     )
     set(CMAKE_BUILD_RPATH "${CMAKE_CURRENT_LIST_DIR}/lib/linux")
-    set(GEODRAW_LIB "${CMAKE_CURRENT_LIST_DIR}/lib/macos/libgeodraw.1.dylib")
+    set(GEODRAW_LIB "${CMAKE_CURRENT_LIST_DIR}/lib/linux/libgeodraw.so.1")
 endif()
 
 set_target_properties(geodraw PROPERTIES
