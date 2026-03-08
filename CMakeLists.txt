@@ -65,6 +65,19 @@ ${CMAKE_CURRENT_LIST_DIR}/external/imgui/backends"
 )
 
 # ----------------------
+# Native File Dialog Extended (required when ImGui is enabled)
+# ----------------------
+if(GEODRAW_WITH_IMGUI)
+    include(FetchContent)
+    FetchContent_Declare(
+        nfd
+        GIT_REPOSITORY https://github.com/btzy/nativefiledialog-extended.git
+        GIT_TAG        v1.2.1
+    )
+    FetchContent_MakeAvailable(nfd)
+endif()
+
+# ----------------------
 # ImGui static library (hidden symbols)
 # ----------------------
 if(GEODRAW_WITH_IMGUI)
@@ -199,6 +212,8 @@ if(GEODRAW_BUILD_APPS)
 
     if(GEODRAW_WITH_IMGUI)
         target_sources(rl_gui PRIVATE app/rl_gui_ui.cpp)
+        target_link_libraries(scenario_viewer PRIVATE nfd)
+        target_link_libraries(rl_gui PRIVATE nfd)
     endif()
 endif() # GEODRAW_BUILD_APPS
 

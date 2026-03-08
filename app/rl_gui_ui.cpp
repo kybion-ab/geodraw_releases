@@ -15,6 +15,7 @@
 
 #ifdef GEODRAW_HAS_IMGUI
 #include <imgui.h>
+#include <nfd.hpp>
 #endif
 
 #include <nlohmann/json.hpp>
@@ -344,53 +345,42 @@ void RLGuiUI::drawEarthPanel() {
     ImGui::InputText("##dirpath", directoryPath_, sizeof(directoryPath_));
     ImGui::SameLine();
     if (ImGui::Button("Browse...")) {
-        showFileBrowser_ = !showFileBrowser_;
-        if (showFileBrowser_) {
-            std::string initDir = currentBrowserDir_.empty()
-                ? fs::current_path().string() : currentBrowserDir_;
-            if (fs::exists(initDir) && fs::is_directory(initDir))
-                currentBrowserDir_ = initDir;
-            else
-                currentBrowserDir_ = fs::current_path().string();
+        NFD::UniquePath out;
+        std::string def = directoryPath_[0] ? directoryPath_ : fs::current_path().string();
+        if (NFD::PickFolder(out, def.c_str()) == NFD_OKAY) {
+            std::strncpy(directoryPath_, out.get(), sizeof(directoryPath_) - 1);
+            directoryPath_[sizeof(directoryPath_) - 1] = '\0';
         }
-    }
-
-    if (showFileBrowser_) {
-        ImGui::BeginChild("DirBrowser", ImVec2(0, 150), true);
-        ImGui::Text("Current: %s", currentBrowserDir_.c_str());
-        ImGui::Separator();
-        if (ImGui::Selectable(".. (Parent)")) {
-            auto p = fs::path(currentBrowserDir_).parent_path();
-            if (!p.empty() && fs::exists(p)) currentBrowserDir_ = p.string();
-        }
-        try {
-            for (const auto& e : fs::directory_iterator(currentBrowserDir_))
-                if (e.is_directory()) {
-                    std::string n = e.path().filename().string();
-                    if (ImGui::Selectable(n.c_str()))
-                        currentBrowserDir_ = e.path().string();
-                }
-        } catch (...) {}
-        ImGui::Separator();
-        if (ImGui::Button("Select This Directory")) {
-            std::strncpy(directoryPath_, currentBrowserDir_.c_str(),
-                         sizeof(directoryPath_)-1);
-            showFileBrowser_ = false;
-        }
-        ImGui::EndChild();
     }
 
     if (ImGui::Button("Scan Directory", ImVec2(-1, 0))) {
         if (std::strlen(directoryPath_) > 0 && fs::exists(directoryPath_)) {
             allScenarioPins_.clear();
-            int count = 0;
-            for (auto& e : fs::recursive_directory_iterator(directoryPath_)) {
-                if (e.path().extension() == ".json") {
-                    ScenarioPin pin = parseScenarioMetadata(e.path().string());
-                    if (pin.hasMetadata) { allScenarioPins_.push_back(pin); ++count; }
+            int count = 0, skipped = 0;
+            try {
+                for (auto& e : fs::recursive_directory_iterator(
+                         directoryPath_, fs::directory_options::skip_permission_denied)) {
+                    std::string ext = e.path().extension().string();
+                    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+                    if (ext == ".json") {
+                        ScenarioPin pin = parseScenarioMetadata(e.path().string());
+                        if (pin.hasMetadata) {
+                            allScenarioPins_.push_back(pin); ++count;
+                        } else {
+                            ++skipped;
+                            std::cerr << "Warning: no location metadata in "
+                                      << e.path().filename().string() << "\n";
+                        }
+                    }
                 }
+            } catch (const std::exception& ex) {
+                std::cerr << "Scan error: " << ex.what() << "\n";
             }
-            std::cout << "Found " << count << " scenarios with metadata\n";
+            skippedCount_ = skipped;
+            std::cout << "Found " << count << " scenarios with location metadata";
+            if (skipped > 0)
+                std::cout << " (" << skipped << " JSON files skipped — no location metadata)";
+            std::cout << "\n";
             applyFilter();
         }
     }
@@ -398,6 +388,8 @@ void RLGuiUI::drawEarthPanel() {
     ImGui::Separator();
     if (allScenarioPins_.size() != scenarioPins_.size())
         ImGui::Text("Showing: %zu / %zu scenarios", scenarioPins_.size(), allScenarioPins_.size());
+    else if (skippedCount_ > 0)
+        ImGui::Text("Found: %zu scenarios (%d skipped, no location)", scenarioPins_.size(), skippedCount_);
     else
         ImGui::Text("Found: %zu scenarios", scenarioPins_.size());
     if (ImGui::Button(showFilterPanel_ ? "Filters (open)" : "Filters...", ImVec2(-1, 0)))

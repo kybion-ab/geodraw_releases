@@ -56,13 +56,20 @@ from ._geodraw import (
     Priority,
 )
 
+# Native file/folder dialog helpers — only available when ImGui (and NFD) are compiled in
+try:
+    from ._geodraw import pick_folder, pick_file  # noqa: F401
+    _has_nfd = True
+except ImportError:
+    _has_nfd = False
+
 # Gui is only available when ImGui support is compiled in
 try:
     from ._geodraw import Gui  # noqa: F401
     __all__ = ['Scene', 'show', 'App', 'Toggle', 'MinorMode', 'Gui', 'LoadedModel',
                'TooltipBuilder', 'TooltipContext', 'Shape3', 'ShapeEditor',
                'CameraTrajectoryPlugin', 'VideoCapturePlugin', 'ScenarioPlugin',
-               'Key', 'Mod', 'Priority']
+               'Key', 'Mod', 'Priority', 'pick_folder', 'pick_file']
 except ImportError:
     __all__ = ['Scene', 'show', 'App', 'Toggle', 'MinorMode', 'LoadedModel',
                'TooltipBuilder', 'TooltipContext', 'Shape3', 'ShapeEditor',

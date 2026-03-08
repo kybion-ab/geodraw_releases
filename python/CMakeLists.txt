@@ -12,8 +12,11 @@ pybind11_add_module(_geodraw
     src/bindings.cpp
 )
 
-# Link against geodraw library
+# Link against geodraw library and nfd (native file dialogs, available when ImGui is enabled)
 target_link_libraries(_geodraw PRIVATE geodraw)
+if(GEODRAW_WITH_IMGUI AND TARGET nfd)
+    target_link_libraries(_geodraw PRIVATE nfd)
+endif()
 
 # Include directories
 # Note: ${CMAKE_SOURCE_DIR}/include is intentionally omitted — geodraw target

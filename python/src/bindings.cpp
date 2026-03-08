@@ -30,6 +30,7 @@
 #include "geodraw/ui/imgui_plugin.h"
 #include "geodraw/ui/imgui_helpers.hpp"
 #include "geodraw/ui/tooltip_system.hpp"
+#include <nfd.hpp>
 #endif
 
 #include "geodraw/app/key.hpp"
@@ -38,6 +39,7 @@
 #include "geodraw/modules/video_capture/video_capture_plugin.hpp"
 #include "geodraw/modules/drive/scenario_plugin.hpp"
 
+#include <filesystem>
 #include <vector>
 #include <tuple>
 #include <string>
@@ -1038,6 +1040,24 @@ public:
 
     bool is_loaded() const { return plugin_.isLoaded(); }
 
+    void set_folder_pick_callback(py::object cb) {
+        plugin_.setFolderPickCallback([cb](const std::string& def) -> std::string {
+            py::gil_scoped_acquire gil;
+            py::object result = cb(def);
+            if (result.is_none()) return "";
+            return result.cast<std::string>();
+        });
+    }
+
+    void set_file_pick_callback(py::object cb) {
+        plugin_.setFilePickCallback([cb](const std::string& def) -> std::string {
+            py::gil_scoped_acquire gil;
+            py::object result = cb(def);
+            if (result.is_none()) return "";
+            return result.cast<std::string>();
+        });
+    }
+
 #ifdef GEODRAW_HAS_IMGUI
     void draw_imgui_panel(PyApp& pyApp) {
         plugin_.drawImGuiPanel(pyApp.getApp().camera, pyApp.getApp(), nullptr);
@@ -1750,6 +1770,12 @@ Usage:
              "Set the 3D car model used to render vehicles (call before activate_scenario).")
         .def("is_loaded", &PyScenarioPlugin::is_loaded,
              "Return True if a scenario has been loaded.")
+        .def("set_folder_pick_callback", &PyScenarioPlugin::set_folder_pick_callback,
+             py::arg("callback"),
+             "Set a callback(default_path: str) -> str for picking a folder (native dialog).")
+        .def("set_file_pick_callback", &PyScenarioPlugin::set_file_pick_callback,
+             py::arg("callback"),
+             "Set a callback(default_path: str) -> str for picking a file (native dialog).")
 #ifdef GEODRAW_HAS_IMGUI
         .def("draw_imgui_panel", &PyScenarioPlugin::draw_imgui_panel,
              py::arg("app"),
@@ -1820,6 +1846,46 @@ Use Q or ESC to close. Mouse: drag=orbit, scroll=zoom, right-drag=pan.
           py::arg("width") = 1280,
           py::arg("height") = 720,
           "Show multiple labeled scenes with toggle controls (1-9 keys).");
+
+    // -------------------------------------------------------------------------
+    // Native file/folder dialog helpers (NFD)
+    // -------------------------------------------------------------------------
+
+#ifdef GEODRAW_HAS_IMGUI
+    m.def("pick_folder", [](const std::string& default_path) -> std::string {
+        NFD::Guard guard;
+        NFD::UniquePath out;
+        nfdresult_t res = NFD::PickFolder(out, default_path.empty() ? nullptr : default_path.c_str());
+        return (res == NFD_OKAY) ? std::string(out.get()) : "";
+    }, py::arg("default_path") = "",
+    "Open a native folder picker. Returns the chosen path, or '' if cancelled.");
+
+    m.def("pick_file", [](const std::string& default_path,
+                          const std::vector<std::pair<std::string,std::string>>& filters)
+            -> std::string {
+        NFD::Guard guard;
+        NFD::UniquePath out;
+        std::vector<nfdfilteritem_t> items;
+        items.reserve(filters.size());
+        for (const auto& f : filters)
+            items.push_back({f.first.c_str(), f.second.c_str()});
+        std::string dir = default_path;
+        if (!dir.empty()) {
+            namespace fs = std::filesystem;
+            if (fs::is_regular_file(dir)) dir = fs::path(dir).parent_path().string();
+        }
+        nfdresult_t res = NFD::OpenDialog(out,
+            items.empty() ? nullptr : items.data(),
+            (nfdfiltersize_t)items.size(),
+            dir.empty() ? nullptr : dir.c_str());
+        return (res == NFD_OKAY) ? std::string(out.get()) : "";
+    }, py::arg("default_path") = "",
+       py::arg("filters") = std::vector<std::pair<std::string,std::string>>{},
+    R"doc(Open a native file picker. Returns the chosen path, or '' if cancelled.
+
+filters: list of (name, extension) pairs, e.g. [("JSON scenario", "json")].
+)doc");
+#endif
 
     // -------------------------------------------------------------------------
     // Key constants
