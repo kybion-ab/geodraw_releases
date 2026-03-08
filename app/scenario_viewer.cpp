@@ -8,11 +8,20 @@
  *******************************************************************************/
 
 #include "geodraw/modules/drive/scenario_plugin.hpp"
+#include <cstdlib>
+#include <stdexcept>
 
 int main(int argc, char** argv) {
-    const std::string filepath = (argc > 1)
-        ? argv[1]
-        : "../data/examples/tfrecord-00000-of-01000_4.json";
+    std::string filepath;
+    if (argc > 1) {
+        filepath = argv[1];
+    } else {
+        const char* root = getenv("GEODRAW_ROOT");
+        if (!root) {
+            throw std::runtime_error("GEODRAW_ROOT not set");
+        }
+        filepath = std::string(root) + "/data/examples/tfrecord-00000-of-01000_4.json";
+    }
 
     geodraw::ScenarioPlugin::runStandalone(filepath);
     return 0;

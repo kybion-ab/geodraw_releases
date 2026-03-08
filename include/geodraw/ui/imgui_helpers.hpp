@@ -14,6 +14,7 @@
 #pragma once
 
 #include "geodraw/export/export.hpp"
+#include <array>
 #include <string>
 #include <utility>
 
@@ -37,6 +38,10 @@ GEODRAW_API std::pair<bool, bool> checkbox(const char* label, bool v);
 /// Horizontal float slider. Returns {changed, new_value}.
 GEODRAW_API std::pair<bool, float> slider_float(const char* label, float v,
                                                  float v_min, float v_max);
+
+/// Color picker. Returns {changed, {r, g, b}}.
+GEODRAW_API std::pair<bool, std::array<float, 3>> color_edit3(const char* label,
+                                                               float r, float g, float b);
 
 /// Single-line text input (max 255 chars). Returns {changed, new_text}.
 GEODRAW_API std::pair<bool, std::string> input_text(const char* label,

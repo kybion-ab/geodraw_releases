@@ -33,6 +33,10 @@
 #endif
 
 #include "geodraw/app/key.hpp"
+#include "geodraw/modules/earth/earth_shape_edit.hpp"
+#include "geodraw/modules/camera_trajectory/camera_trajectory_plugin.hpp"
+#include "geodraw/modules/video_capture/video_capture_plugin.hpp"
+#include "geodraw/modules/drive/scenario_plugin.hpp"
 
 #include <vector>
 #include <tuple>
@@ -175,6 +179,86 @@ private:
 };
 
 // =============================================================================
+// PyRenderer - thin wrapper around geodraw::Renderer (ref proxy, not owned)
+// =============================================================================
+
+class PyRenderer {
+public:
+    explicit PyRenderer(geodraw::Renderer& r) : renderer_(r) {}
+
+    unsigned int load_texture(const std::string& path) {
+        return renderer_.loadTexture(path);
+    }
+
+    void unload_texture(const std::string& path) {
+        renderer_.unloadTexture(path);
+    }
+
+private:
+    geodraw::Renderer& renderer_;
+};
+
+// =============================================================================
+// PyShape3 - Python wrapper for geodraw::Shape3 (mutable, editable geometry)
+// =============================================================================
+
+class PyShape3 {
+public:
+    PyShape3() = default;
+
+    // Add a new polygon (ring). points: list of (x,y,z) or Nx3 array.
+    // Each call creates a new polygon; the first ring is the outer boundary.
+    void add_ring(py::object points) {
+        geodraw::Polyline3 ring;
+        if (py::isinstance<py::array>(points)) {
+            ring.points = toPos3Vector(points.cast<py::array_t<double>>());
+        } else {
+            ring.points = toPos3VectorFromList(points.cast<py::list>());
+        }
+        shape_.polygons.push_back({ring});
+    }
+
+    // Add a hole to the last polygon (must have called add_ring first).
+    void add_hole(py::object points) {
+        if (shape_.polygons.empty()) {
+            throw std::runtime_error("add_hole: no polygon yet; call add_ring first.");
+        }
+        geodraw::Polyline3 hole;
+        if (py::isinstance<py::array>(points)) {
+            hole.points = toPos3Vector(points.cast<py::array_t<double>>());
+        } else {
+            hole.points = toPos3VectorFromList(points.cast<py::list>());
+        }
+        shape_.polygons.back().push_back(hole);
+    }
+
+    // Add an isolated polyline.
+    void add_line(py::object points) {
+        geodraw::Polyline3 line;
+        if (py::isinstance<py::array>(points)) {
+            line.points = toPos3Vector(points.cast<py::array_t<double>>());
+        } else {
+            line.points = toPos3VectorFromList(points.cast<py::list>());
+        }
+        shape_.lines.push_back(line);
+    }
+
+    // Add an isolated point.
+    void add_point(const py::sequence& pos) {
+        shape_.points.push_back(toPos3(pos));
+    }
+
+    void clear() { shape_ = geodraw::Shape3{}; }
+    bool is_empty() const { return shape_.isEmpty(); }
+
+    // Non-const accessor used by PyScene::add_shape() for the editable overload.
+    geodraw::Shape3& getShape() { return shape_; }
+
+private:
+    geodraw::Shape3 shape_;
+};
+
+// =============================================================================
 // PyScene - Python wrapper for Scene (owning + reference-proxy modes)
 // =============================================================================
 
@@ -304,9 +388,36 @@ public:
     PyTooltipBuilder add_triangle(py::sequence vertices,
                                   py::sequence color = py::make_tuple(1.0f, 1.0f, 1.0f),
                                   float alpha = 1.0f,
-                                  bool filled = true) {
-        geodraw::Triangle3 tri(toPos3(vertices[0]), toPos3(vertices[1]), toPos3(vertices[2]));
-        auto b = sceneRef().Add(tri, 1.0f, geodraw::LineStyle::Solid, alpha, toColor(color), true, filled);
+                                  bool filled = true,
+                                  unsigned int texture_handle = 0) {
+        geodraw::Triangle3 tri;
+        bool has_uv = false;
+        try {
+            py::sequence v0 = vertices[0].cast<py::sequence>();
+            if (py::len(v0) == 2) {
+                v0[0].cast<py::sequence>();  // throws if v0[0] is a number
+                has_uv = true;
+            }
+        } catch (...) {}
+
+        if (has_uv) {
+            auto parseUV = [](py::object item) -> std::pair<geodraw::Pos3, glm::vec2> {
+                py::sequence pair = item.cast<py::sequence>();
+                py::sequence pos  = pair[0].cast<py::sequence>();
+                py::sequence uv   = pair[1].cast<py::sequence>();
+                return {toPos3(pos), glm::vec2(uv[0].cast<float>(), uv[1].cast<float>())};
+            };
+            auto [p0, t0] = parseUV(vertices[0]);
+            auto [p1, t1] = parseUV(vertices[1]);
+            auto [p2, t2] = parseUV(vertices[2]);
+            tri = geodraw::Triangle3(p0, p1, p2, t0, t1, t2);
+        } else {
+            tri = geodraw::Triangle3(toPos3(vertices[0]), toPos3(vertices[1]), toPos3(vertices[2]));
+        }
+
+        auto b = sceneRef().Add(tri, 1.0f, geodraw::LineStyle::Solid, alpha,
+                                toColor(color), true, filled,
+                                static_cast<GLuint>(texture_handle));
         return PyTooltipBuilder{b.get()};
     }
 
@@ -376,6 +487,19 @@ public:
         return PyTooltipBuilder{b.get()};
     }
 
+    // add_shape: editable rendering path. IMPORTANT: pyShape must remain alive
+    // for as long as this scene is rendered (the scene holds a non-owning pointer).
+    PyTooltipBuilder add_shape(PyShape3& pyShape,
+                               float thickness = 1.0f,
+                               py::sequence color = py::make_tuple(1.0f, 1.0f, 1.0f),
+                               float alpha = 1.0f,
+                               bool filled = true) {
+        auto b = sceneRef().Add(pyShape.getShape(), thickness,
+                                geodraw::LineStyle::Solid, alpha, toColor(color),
+                                true, filled);
+        return PyTooltipBuilder{b.get()};
+    }
+
     void add_loaded_model(const PyLoadedModel& model, float alpha = 1.0f) {
         const auto& lm = model.get();
         for (size_t i = 0; i < lm.meshes.size(); ++i) {
@@ -402,6 +526,16 @@ private:
     const geodraw::Scene& sceneRef() const {
         return ref_ ? *ref_ : scene_;
     }
+};
+
+// =============================================================================
+// PyIAppModuleBase - common base for Python-accessible IAppModule wrappers
+// =============================================================================
+
+class PyIAppModuleBase {
+public:
+    virtual geodraw::IAppModule& module() = 0;
+    virtual ~PyIAppModuleBase() = default;
 };
 
 // =============================================================================
@@ -445,6 +579,12 @@ public:
     py::tuple slider_float(std::string label, float v, float v_min, float v_max) {
         auto [changed, nv] = geodraw::imgui::slider_float(label.c_str(), v, v_min, v_max);
         return py::make_tuple(changed, nv);
+    }
+
+    // Returns (changed, (r, g, b))
+    py::tuple color_edit3(std::string label, float r, float g, float b) {
+        auto [changed, col] = geodraw::imgui::color_edit3(label.c_str(), r, g, b);
+        return py::make_tuple(changed, py::make_tuple(col[0], col[1], col[2]));
     }
 
     // Returns (changed, new_text)
@@ -505,6 +645,8 @@ public:
         // Add a default scene so scene(0) works without explicit setup.
         app_.addScene();
     }
+
+    geodraw::App& getApp() { return app_; }
 
     // Run the main loop. Releases the GIL so the event loop can proceed.
     void run() {
@@ -641,6 +783,14 @@ public:
      */
     void set_scene_grid(int rows, int cols) {
         app_.setSceneGrid(rows, cols);
+    }
+
+    void enable_editing(size_t scene_index = 0) {
+        app_.enableEditing(scene_index);
+    }
+
+    void add_module(PyIAppModuleBase& m) {
+        app_.addModule(m.module());
     }
 
     /**
@@ -789,6 +939,10 @@ public:
             std::make_shared<geodraw::gltf::LoadedModel>(std::move(*result))));
     }
 
+    PyRenderer renderer() {
+        return PyRenderer(app_.getRenderer());
+    }
+
     int get_width() const  { return app_.getWidth(); }
     int get_height() const { return app_.getHeight(); }
 
@@ -819,6 +973,127 @@ private:
         };
     }
 };
+
+// =============================================================================
+// PyCameraTrajectoryPlugin - Python wrapper for CameraTrajectoryPlugin
+// =============================================================================
+
+class PyCameraTrajectoryPlugin : public PyIAppModuleBase {
+public:
+    PyCameraTrajectoryPlugin() = default;
+
+    geodraw::IAppModule& module() override { return plugin_; }
+
+    geodraw::CameraTrajectoryPlugin& getCamTraj() { return plugin_; }
+
+    geodraw::MinorMode* get_minor_mode() { return plugin_.getMinorMode(); }
+
+#ifdef GEODRAW_HAS_IMGUI
+    void draw_imgui_panel(PyApp& pyApp);
+#endif
+
+private:
+    geodraw::CameraTrajectoryPlugin plugin_;
+};
+
+// =============================================================================
+// PyVideoCapturePlugin - Python wrapper for VideoCapturePlugin
+// =============================================================================
+
+class PyVideoCapturePlugin : public PyIAppModuleBase {
+public:
+    // cam must outlive this object (enforced via py::keep_alive in pybind11).
+    explicit PyVideoCapturePlugin(PyCameraTrajectoryPlugin& cam)
+        : plugin_(cam.getCamTraj()) {}
+
+    geodraw::IAppModule& module() override { return plugin_; }
+
+    geodraw::MinorMode* get_minor_mode() { return plugin_.getMinorMode(); }
+
+#ifdef GEODRAW_HAS_IMGUI
+    void draw_imgui_panel(PyApp& pyApp);
+#endif
+
+private:
+    geodraw::VideoCapturePlugin plugin_;
+};
+
+// =============================================================================
+// PyScenarioPlugin - Python wrapper for ScenarioPlugin
+// =============================================================================
+
+class PyScenarioPlugin : public PyIAppModuleBase {
+public:
+    PyScenarioPlugin() = default;  // standalone mode only
+
+    geodraw::IAppModule& module() override { return plugin_; }
+
+    void activate_scenario(const std::string& filepath, PyApp& pyApp) {
+        plugin_.activateScenario(filepath, pyApp.getApp());
+    }
+
+    void set_car_model(const PyLoadedModel& model) {
+        plugin_.setCarModel(model.get());
+    }
+
+    bool is_loaded() const { return plugin_.isLoaded(); }
+
+#ifdef GEODRAW_HAS_IMGUI
+    void draw_imgui_panel(PyApp& pyApp) {
+        plugin_.drawImGuiPanel(pyApp.getApp().camera, pyApp.getApp(), nullptr);
+    }
+#endif
+
+private:
+    geodraw::ScenarioPlugin plugin_;
+};
+
+// =============================================================================
+// PyShapeEditor - Python wrapper for geodraw::ShapeEditor
+// =============================================================================
+
+class PyShapeEditor {
+public:
+    PyShapeEditor() = default;
+
+    void register_commands(PyApp& pyApp) {
+        editor_.registerCommands(pyApp.getApp());
+    }
+
+    void add_to_scene(PyScene& pyScene,
+                      py::sequence origin = py::make_tuple(0.0, 0.0, 0.0)) {
+        glm::dvec3 o(origin[0].cast<double>(),
+                     origin[1].cast<double>(),
+                     origin[2].cast<double>());
+        editor_.addToScene(pyScene.getMutableScene(), o);
+    }
+
+    void handle_input(PyApp& pyApp) {
+        editor_.handleInput(pyApp.getApp());
+    }
+
+    geodraw::MinorMode* get_minor_mode() { return editor_.getMinorMode(); }
+    bool is_active() const { return editor_.isActive(); }
+
+    void undo()           { editor_.undo(); }
+    void redo()           { editor_.redo(); }
+    bool can_undo() const { return editor_.canUndo(); }
+    bool can_redo() const { return editor_.canRedo(); }
+
+private:
+    geodraw::ShapeEditor editor_;
+};
+
+#ifdef GEODRAW_HAS_IMGUI
+// Out-of-line definitions: require PyApp to be fully declared.
+void PyCameraTrajectoryPlugin::draw_imgui_panel(PyApp& pyApp) {
+    // nullptr: context already set (Python runs single-process, single dylib).
+    plugin_.drawImGuiPanel(pyApp.getApp().camera, pyApp.getApp(), nullptr);
+}
+void PyVideoCapturePlugin::draw_imgui_panel(PyApp& pyApp) {
+    plugin_.drawImGuiPanel(pyApp.getApp(), nullptr);
+}
+#endif // GEODRAW_HAS_IMGUI
 
 // =============================================================================
 // Module-level show functions (QuickDraw API — unchanged)
@@ -913,6 +1188,59 @@ Properties:
                       "Hit position as (x, y, z) tuple.");
 
     // -------------------------------------------------------------------------
+    // Renderer class
+    // -------------------------------------------------------------------------
+
+    py::class_<PyRenderer>(m, "Renderer", R"doc(
+Thin wrapper around the OpenGL renderer for texture management.
+Obtained via app.renderer(). Do not hold references beyond app lifetime.
+)doc")
+        .def("load_texture", &PyRenderer::load_texture, py::arg("path"),
+             "Load a texture from file. Returns int handle (0 on error).")
+        .def("unload_texture", &PyRenderer::unload_texture, py::arg("path"),
+             "Unload a previously loaded texture.");
+
+    // -------------------------------------------------------------------------
+    // Shape3 class (mutable editable geometry)
+    // -------------------------------------------------------------------------
+
+    py::class_<PyShape3>(m, "Shape3", R"doc(
+Mutable 3D shape for editable geometry.
+
+Build the shape before entering the event loop, then add it to the scene
+each frame via scene.add_shape(shape). The shape object must remain alive
+for as long as it is rendered (the scene holds a non-owning reference).
+
+Controls when app.enable_editing() is active:
+    TAB   — enter / exit edit mode
+    ENTER — commit edits
+    ESC   — cancel edits (revert to last committed state)
+
+Example:
+    shape = geodraw.Shape3()
+    shape.add_ring([(-5,-5,0), (-5,0,0), (0,0,0), (0,-5,0), (-5,-5,0)])
+
+    @app.add_update_callback()
+    def update(dt):
+        scene = app.scene()
+        scene.clear()
+        scene.add_shape(shape).with_id(1).with_type("MyShape")
+)doc")
+        .def(py::init<>())
+        .def("add_ring", &PyShape3::add_ring, py::arg("points"),
+             "Add a new polygon ring (outer boundary). points: list of (x,y,z) or Nx3 array.")
+        .def("add_hole", &PyShape3::add_hole, py::arg("points"),
+             "Add a hole to the last polygon. Must call add_ring first.")
+        .def("add_line", &PyShape3::add_line, py::arg("points"),
+             "Add an isolated polyline. points: list of (x,y,z) or Nx3 array.")
+        .def("add_point", &PyShape3::add_point, py::arg("pos"),
+             "Add an isolated point.")
+        .def("clear", &PyShape3::clear,
+             "Remove all geometry from the shape.")
+        .def("is_empty", &PyShape3::is_empty,
+             "Return True if the shape contains no geometry.");
+
+    // -------------------------------------------------------------------------
     // Scene class (QuickDraw + App proxy)
     // -------------------------------------------------------------------------
 
@@ -974,7 +1302,15 @@ In App mode: obtained via app.scene(); cleared and re-populated each update.
              py::arg("color") = py::make_tuple(1.0f, 1.0f, 1.0f),
              py::arg("alpha") = 1.0f,
              py::arg("filled") = true,
-             "Add a single triangle.")
+             py::arg("texture_handle") = 0u,
+             R"doc(Add a single triangle.
+
+vertices: list of 3 items, either:
+  - Plain positions:  [(x,y,z), (x,y,z), (x,y,z)]
+  - With UV coords:   [((x,y,z),(u,v)), ((x,y,z),(u,v)), ((x,y,z),(u,v))]
+
+texture_handle: int returned by app.renderer().load_texture(). 0 = solid color.
+)doc")
         .def("add_mesh", &PyScene::add_mesh,
              py::arg("vertices"), py::arg("indices"),
              py::arg("color") = py::make_tuple(1.0f, 1.0f, 1.0f),
@@ -996,6 +1332,21 @@ In App mode: obtained via app.scene(); cleared and re-populated each update.
              py::arg("color") = py::make_tuple(0.5f, 0.5f, 0.5f),
              py::arg("alpha") = 1.0f,
              "Add a ground plane quad.")
+        .def("add_shape", &PyScene::add_shape,
+             py::arg("shape"),
+             py::arg("thickness") = 1.0f,
+             py::arg("color") = py::make_tuple(1.0f, 1.0f, 1.0f),
+             py::arg("alpha") = 1.0f,
+             py::arg("filled") = true,
+             R"doc(Add an editable Shape3 to the scene.
+
+The shape object must remain alive for as long as it is rendered.
+Use .with_id(n).with_type("Name") on the returned TooltipBuilder
+so the editor can track and select this object.
+
+Example:
+    scene.add_shape(shape).with_id(1).with_type("MyShape")
+)doc")
         .def("add_loaded_model", &PyScene::add_loaded_model,
              py::arg("model"), py::arg("alpha") = 1.0f,
              R"doc(Render all meshes from a LoadedModel (obtained via app.load_glb()).
@@ -1060,6 +1411,9 @@ do not hold references to it outside the callback scope.
         .def("slider_float", &PyGui::slider_float,
              py::arg("label"), py::arg("v"), py::arg("v_min"), py::arg("v_max"),
              "Float slider. Returns (changed: bool, new_value: float).")
+        .def("color_edit3", &PyGui::color_edit3,
+             py::arg("label"), py::arg("r"), py::arg("g"), py::arg("b"),
+             "Color picker widget. Returns (changed: bool, (r, g, b): tuple).")
         .def("slider_int", &PyGui::slider_int,
              py::arg("label"), py::arg("v"), py::arg("v_min"), py::arg("v_max"),
              "Integer slider. Returns (changed: bool, new_value: int).")
@@ -1134,6 +1488,21 @@ Example:
         .def("set_scene_grid", &PyApp::set_scene_grid,
              py::arg("rows"), py::arg("cols"),
              "Activate N×M grid layout for simultaneous multi-scene rendering.")
+        .def("enable_editing", &PyApp::enable_editing,
+             py::arg("scene_index") = 0,
+             R"doc(Activate click-to-select and drag editing for Shape3 objects.
+
+Must be called once after app creation. Only objects added via
+scene.add_shape() participate in editing.
+
+Controls:
+    TAB   — enter / exit edit mode
+    ENTER — commit edits
+    ESC   — cancel edits (revert to last committed state)
+)doc")
+        .def("add_module", &PyApp::add_module,
+             py::arg("module"),
+             "Attach a plugin module (CameraTrajectoryPlugin, VideoCapturePlugin, etc.) to the app.")
         .def("auto_frame_scene", &PyApp::auto_frame_scene,
              py::arg("index"), py::arg("bbox_min"), py::arg("bbox_max"),
              R"doc(Auto-frame the per-scene camera at index to the given bounding box.
@@ -1229,6 +1598,8 @@ Example:
         .def("is_minor_mode_active", &PyApp::is_minor_mode_active,
              py::arg("mode"),
              "Return True if the minor mode is currently active.")
+        .def("renderer", &PyApp::renderer,
+             "Get the renderer for texture management (load_texture / unload_texture).")
         .def("load_glb", &PyApp::load_glb, py::arg("path"),
              R"doc(Load a .glb file and return a LoadedModel.
 
@@ -1283,6 +1654,151 @@ Example:
 )doc")
 #endif
         ;
+
+    // -------------------------------------------------------------------------
+    // CameraTrajectoryPlugin class
+    // -------------------------------------------------------------------------
+
+    py::class_<PyIAppModuleBase>(m, "IAppModule"); // internal base, not user-visible
+
+    py::class_<PyCameraTrajectoryPlugin, PyIAppModuleBase>(m, "CameraTrajectoryPlugin", R"doc(
+Plugin for recording and playing back camera trajectories.
+
+Usage:
+    cam_traj = geodraw.CameraTrajectoryPlugin()
+    app.add_module(cam_traj)
+    app.activate_minor_mode(cam_traj.get_minor_mode())
+
+    @app.set_imgui_callback()
+    def draw_ui(gui):
+        cam_traj.draw_imgui_panel(app)
+
+The ImGui panel provides keyframe management (add/remove/sort),
+baking (densify at FPS), playback controls, and CSV I/O.
+)doc")
+        .def(py::init<>())
+        .def("get_minor_mode", &PyCameraTrajectoryPlugin::get_minor_mode,
+             py::return_value_policy::reference,
+             "Return the MinorMode for camera trajectory keybindings (available after add_module).")
+#ifdef GEODRAW_HAS_IMGUI
+        .def("draw_imgui_panel", &PyCameraTrajectoryPlugin::draw_imgui_panel,
+             py::arg("app"),
+             "Draw the camera trajectory control panel inside an imgui callback.")
+#endif
+        ;
+
+    // -------------------------------------------------------------------------
+    // VideoCapturePlugin class
+    // -------------------------------------------------------------------------
+
+    py::class_<PyVideoCapturePlugin, PyIAppModuleBase>(m, "VideoCapturePlugin", R"doc(
+Plugin that captures video frames by stepping through a CameraTrajectoryPlugin's
+baked poses and writing PNG files with glReadPixels.
+
+The cam_traj argument must remain alive for the lifetime of this plugin.
+
+Usage:
+    cam_traj = geodraw.CameraTrajectoryPlugin()
+    video_cap = geodraw.VideoCapturePlugin(cam_traj)
+    app.add_module(cam_traj)
+    app.add_module(video_cap)
+    app.activate_minor_mode(video_cap.get_minor_mode())
+
+    @app.set_imgui_callback()
+    def draw_ui(gui):
+        video_cap.draw_imgui_panel(app)
+)doc")
+        .def(py::init<PyCameraTrajectoryPlugin&>(),
+             py::arg("cam_traj"),
+             py::keep_alive<1, 2>(), // keep cam_traj alive at least as long as video_cap
+             "Create a VideoCapturePlugin that hooks into cam_traj's playback.")
+        .def("get_minor_mode", &PyVideoCapturePlugin::get_minor_mode,
+             py::return_value_policy::reference,
+             "Return the MinorMode for video capture keybindings (available after add_module).")
+#ifdef GEODRAW_HAS_IMGUI
+        .def("draw_imgui_panel", &PyVideoCapturePlugin::draw_imgui_panel,
+             py::arg("app"),
+             "Draw the video capture control panel inside an imgui callback.")
+#endif
+        ;
+
+    // -------------------------------------------------------------------------
+    // ScenarioPlugin class
+    // -------------------------------------------------------------------------
+
+    py::class_<PyScenarioPlugin, PyIAppModuleBase>(m, "ScenarioPlugin", R"doc(
+Plugin for vehicle trajectory scenario visualization.
+
+Usage:
+    scenario = geodraw.ScenarioPlugin()
+    car_model = app.load_glb("data/glb_files/GreenCar.glb")
+    if car_model is not None and car_model.is_valid:
+        scenario.set_car_model(car_model)
+    app.add_module(scenario)
+    scenario.activate_scenario("path/to/scene.json", app)
+
+    @app.set_imgui_callback()
+    def draw_ui(gui):
+        scenario.draw_imgui_panel(app)
+)doc")
+        .def(py::init<>())
+        .def("activate_scenario", &PyScenarioPlugin::activate_scenario,
+             py::arg("filepath"), py::arg("app"),
+             "Load and activate a scenario from a JSON file.")
+        .def("set_car_model", &PyScenarioPlugin::set_car_model,
+             py::arg("model"),
+             "Set the 3D car model used to render vehicles (call before activate_scenario).")
+        .def("is_loaded", &PyScenarioPlugin::is_loaded,
+             "Return True if a scenario has been loaded.")
+#ifdef GEODRAW_HAS_IMGUI
+        .def("draw_imgui_panel", &PyScenarioPlugin::draw_imgui_panel,
+             py::arg("app"),
+             "Draw the scenario control panel (playback, visibility) inside an imgui callback.")
+#endif
+        ;
+
+    // -------------------------------------------------------------------------
+    // ShapeEditor class
+    // -------------------------------------------------------------------------
+
+    py::class_<PyShapeEditor>(m, "ShapeEditor", R"doc(
+Shape editor for interactive polygon / line / point editing.
+
+Create one instance, call register_commands(app) once, then call
+add_to_scene(scene) from your update callback and handle_input(app)
+from your draw callback.
+
+Controls registered by register_commands():
+    CTRL+S  — Activate / deactivate shape editing mode
+    CTRL+R  — Commit current points as a ring (polygon)
+    CTRL+L  — Commit current points as a line
+    CTRL+P  — Commit current points as isolated points
+    CTRL+Z  — Undo
+    CTRL+Y  — Redo
+    CTRL+D  — Delete nearest point
+    CTRL+I  — Split nearest edge (insert point)
+    CTRL+M  — Move nearest point (hold and drag)
+    CTRL+O  — Save shape to file
+    CTRL+F  — Load shape from file
+)doc")
+        .def(py::init<>())
+        .def("register_commands", &PyShapeEditor::register_commands, py::arg("app"),
+             "Register all shape editing commands with the app.")
+        .def("add_to_scene", &PyShapeEditor::add_to_scene,
+             py::arg("scene"),
+             py::arg("origin") = py::make_tuple(0.0, 0.0, 0.0),
+             "Add in-progress and committed geometry to the scene.")
+        .def("handle_input", &PyShapeEditor::handle_input, py::arg("app"),
+             "Process CTRL+click and drag input (call from a draw callback).")
+        .def("get_minor_mode", &PyShapeEditor::get_minor_mode,
+             py::return_value_policy::reference,
+             "Return the MinorMode used for shape editing keybindings (or None if not yet registered).")
+        .def("is_active", &PyShapeEditor::is_active,
+             "Return True if shape editing mode is currently active.")
+        .def("undo",     &PyShapeEditor::undo,     "Undo the last edit.")
+        .def("redo",     &PyShapeEditor::redo,     "Redo the last undone edit.")
+        .def("can_undo", &PyShapeEditor::can_undo, "Return True if there is a state to undo.")
+        .def("can_redo", &PyShapeEditor::can_redo, "Return True if there is a state to redo.");
 
     // -------------------------------------------------------------------------
     // QuickDraw show functions

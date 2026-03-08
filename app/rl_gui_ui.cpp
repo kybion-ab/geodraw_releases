@@ -25,7 +25,6 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
-#include <set>
 #include <string>
 #include <vector>
 
@@ -326,45 +325,16 @@ void RLGuiUI::drawFilterPanel() {
     ImGui::End();
 }
 
-std::string RLGuiUI::formatKeyBinding(int k, int mods) {
-    if (k < 0) return "";
-    std::string r;
-    if (mods & Mod::Ctrl)  r += "Ctrl+";
-    if (mods & Mod::Alt)   r += "Alt+";
-    if (mods & Mod::Shift) r += "Shift+";
-    if (mods & Mod::Super) r += "Super+";
-    if (k >= key(Key::A) && k <= key(Key::Z))
-        r += static_cast<char>('A' + (k - key(Key::A)));
-    else if (k >= key(Key::D0) && k <= key(Key::D9))
-        r += static_cast<char>('0' + (k - key(Key::D0)));
-    else if (k >= key(Key::F1) && k <= key(Key::F12))
-        r += "F" + std::to_string(k - key(Key::F1) + 1);
-    else switch (k) {
-        case key(Key::Space):  r += "Space"; break;
-        case key(Key::Enter):  r += "Enter"; break;
-        case key(Key::Tab):    r += "Tab";   break;
-        case key(Key::Escape): r += "Esc";   break;
-        default:               r += "?";     break;
-    }
-    return r;
-}
-
 void RLGuiUI::draw() {
     drawEarthPanel();
     if (showFilterPanel_) drawFilterPanel();
-    drawCommandWindow();
-    // Scenario panel drawn by caller only when the minor mode is active
-    if (scenario_.getMinorMode() &&
-        app_.isMinorModeActive(*scenario_.getMinorMode())) {
-        scenario_.drawImGuiPanel(app_.camera, app_, ImGui::GetCurrentContext());
-    }
 }
 
 void RLGuiUI::drawEarthPanel() {
     ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(280, 0), ImGuiCond_FirstUseEver);
 
-    if (!ImGui::Begin("Earth Controls", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (!ImGui::Begin("Scenario Loader", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
         ImGui::End();
         return;
     }
@@ -451,76 +421,7 @@ void RLGuiUI::drawEarthPanel() {
         ImGui::EndChild();
     }
 
-    ImGui::Separator();
-
-    // Layer selection
-    auto layers = provider_->availableLayers();
-    if (!layers.empty()) {
-        const char* cur = currentLayerId_.c_str();
-        for (const auto& l : layers)
-            if (l.id == currentLayerId_) { cur = l.displayName.c_str(); break; }
-        if (ImGui::BeginCombo("Layer", cur)) {
-            for (const auto& l : layers) {
-                bool isSel = (l.id == currentLayerId_);
-                if (ImGui::Selectable(l.displayName.c_str(), isSel)) {
-                    currentLayerId_ = l.id;
-                    earth_.setLayerId(currentLayerId_);
-                    app_.requestUpdate();
-                }
-            }
-            ImGui::EndCombo();
-        }
-    }
-
     if (ImGui::Checkbox("Show Pins",  &showPins_))     app_.requestUpdate();
-    if (ImGui::Checkbox("Terrain 3D", &terrainEnabled_)) {
-        earth_.setTerrainEnabled(terrainEnabled_);
-        app_.requestUpdate();
-    }
-
-    ImGui::Separator();
-    glm::dvec3 tgt = app_.camera.getGlobeTargetECEF();
-    ECEFCoord  ec(tgt.x, tgt.y, tgt.z);
-    GeoCoord   geo = ecefToGeo(ec).toDegrees();
-    ImGui::Text("Location: %.4f, %.4f", geo.latitude, geo.longitude);
-    ImGui::Text("Tiles: %d visible", earth_.visibleTileCount());
-    double alt = app_.camera.globeAltitude;
-    if (alt > 1000) ImGui::Text("Altitude: %.1f km", alt/1000.0);
-    else            ImGui::Text("Altitude: %.0f m",  alt);
-
-    ImGui::End();
-}
-
-void RLGuiUI::drawCommandWindow() {
-    ImGui::SetNextWindowPos(ImVec2(10, 400), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(200, 0), ImGuiCond_FirstUseEver);
-
-    if (!ImGui::Begin("Commands", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-        ImGui::End();
-        return;
-    }
-
-    std::set<std::string> minor;
-    for (const auto& m : app_.getMinorModes())
-        for (const auto& c : m->commands) minor.insert(c.name);
-
-    for (const auto& cmd : app_.getCommands()) {
-        if (minor.count(cmd.name) || cmd.name.empty()) continue;
-        if (cmd.type == "toggle" && cmd.togglePtr) {
-            bool v = *cmd.togglePtr;
-            if (ImGui::Checkbox(cmd.docstring.c_str(), &v))
-                { cmd.callback(); app_.requestUpdate(); }
-        } else {
-            if (ImGui::Button(cmd.docstring.c_str()))
-                { cmd.callback(); app_.requestUpdate(); }
-        }
-        if (ImGui::IsItemHovered()) {
-            std::string tip = cmd.name;
-            std::string key = formatKeyBinding(cmd.key, cmd.mods);
-            if (!key.empty()) tip += " [" + key + "]";
-            ImGui::SetTooltip("%s", tip.c_str());
-        }
-    }
 
     ImGui::End();
 }

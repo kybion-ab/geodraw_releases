@@ -83,5 +83,7 @@ private:
   geodraw::Scene* tooltipScene_ = nullptr;  // Scene to pick against (nullptr = disabled)
 
   bool pluginsInitialized_ = false;
+
+public:
   void drawRegisteredPlugins();
 };

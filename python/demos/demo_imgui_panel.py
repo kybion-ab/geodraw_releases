@@ -12,11 +12,6 @@ Everything inside the callback runs inside a valid ImGui frame.
 State mutated by the UI is read by the update callback every frame,
 so the scene responds to controls in real time.
 
-Adaptation note:
-  The C++ demo uses ImGui::ColorEdit3 which is not yet bound in Python.
-  This demo uses three gui.slider_float() calls for R, G, B instead.
-  The visual result is equivalent.
-
 Run from the repo root:
     python python/demos/demo_imgui_panel.py
 """
@@ -43,9 +38,10 @@ def main():
         gui.begin("Color picking")
         gui.separator()
 
-        changed_r, color[0] = gui.slider_float("R##color", color[0], 0.0, 1.0)
-        changed_g, color[1] = gui.slider_float("G##color", color[1], 0.0, 1.0)
-        changed_b, color[2] = gui.slider_float("B##color", color[2], 0.0, 1.0)
+        changed, (r, g, b) = gui.color_edit3("Color", color[0], color[1], color[2])
+        if changed:
+            color[:] = [r, g, b]
+            app.request_update()
 
         gui.end()
 

@@ -46,6 +46,11 @@ from ._geodraw import (
     LoadedModel,
     TooltipBuilder,
     TooltipContext,
+    Shape3,
+    ShapeEditor,
+    CameraTrajectoryPlugin,
+    VideoCapturePlugin,
+    ScenarioPlugin,
     Key,
     Mod,
     Priority,
@@ -55,8 +60,12 @@ from ._geodraw import (
 try:
     from ._geodraw import Gui  # noqa: F401
     __all__ = ['Scene', 'show', 'App', 'Toggle', 'MinorMode', 'Gui', 'LoadedModel',
-               'TooltipBuilder', 'TooltipContext', 'Key', 'Mod', 'Priority']
+               'TooltipBuilder', 'TooltipContext', 'Shape3', 'ShapeEditor',
+               'CameraTrajectoryPlugin', 'VideoCapturePlugin', 'ScenarioPlugin',
+               'Key', 'Mod', 'Priority']
 except ImportError:
     __all__ = ['Scene', 'show', 'App', 'Toggle', 'MinorMode', 'LoadedModel',
-               'TooltipBuilder', 'TooltipContext', 'Key', 'Mod', 'Priority']
+               'TooltipBuilder', 'TooltipContext', 'Shape3', 'ShapeEditor',
+               'CameraTrajectoryPlugin', 'VideoCapturePlugin', 'ScenarioPlugin',
+               'Key', 'Mod', 'Priority']
 __version__ = '0.1.0'

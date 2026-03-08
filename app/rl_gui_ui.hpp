@@ -102,9 +102,7 @@ public:
 private:
     void drawEarthPanel();
     void drawFilterPanel();
-    void drawCommandWindow();
     void applyFilter();
-    std::string formatKeyBinding(int key, int mods);
 
     geodraw::App& app_;
     geodraw::earth::EarthLayer& earth_;

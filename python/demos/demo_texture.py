@@ -23,56 +23,43 @@ Triangle UV coordinates are required for texture sampling:
       ((1, 2, 1), (0.5, 1.0)),
   ]
 
-Status: STUB — requires Python bindings not yet implemented.
-Missing bindings:
-  - app.renderer() → Renderer object
-  - Renderer.load_texture(path) → int
-  - Renderer.unload_texture(path)
-  - scene.add_triangle(..., texture_handle=int)  (UV-aware overload)
-
-Run from the repo root:
+Run from anywhere:
     python python/demos/demo_texture.py
 """
 
+import os
 import geodraw
 
-
-# Intended implementation (requires missing bindings):
-#
-# def main():
-#     app = geodraw.App(1280, 720, "Demo Textured Geometry")
-#
-#     tex = app.renderer().load_texture("data/textures/brick.png")
-#     if tex == 0:
-#         print("Note: brick.png not found — triangle will be solid orange.")
-#
-#     # UV coordinates enable texture sampling.
-#     TRIANGLE_UV = [
-#         ((1, 1, 0), (0.0, 0.0)),
-#         ((3, 2, 0), (1.0, 0.0)),
-#         ((1, 2, 1), (0.5, 1.0)),
-#     ]
-#     ORANGE = (0.95, 0.5, 0.0)
-#
-#     @app.add_update_callback()
-#     def update(dt):
-#         scene = app.scene()
-#         scene.clear()
-#         scene.add_axes((0, 0, 0), scale=2.0, thickness=5.0)
-#         scene.add_triangle(TRIANGLE_UV, color=ORANGE, texture_handle=tex)
-#
-#     app.run()
-#
-#     if tex != 0:
-#         app.renderer().unload_texture("data/textures/brick.png")
+_REPO_ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", ".."))
+_BRICK_TEX = os.path.join(_REPO_ROOT, "data", "textures", "brick.png")
 
 
 def main():
-    raise NotImplementedError(
-        "demo_texture requires missing Python bindings: "
-        "app.renderer(), Renderer.load_texture(), Renderer.unload_texture(), "
-        "and scene.add_triangle() with texture_handle and UV coordinates."
-    )
+    app = geodraw.App(1280, 720, "Demo Textured Geometry")
+
+    tex = app.renderer().load_texture(_BRICK_TEX)
+    if tex == 0:
+        print("Note: brick.png not found — triangle will be solid orange.")
+
+    # UV coordinates enable texture sampling.
+    TRIANGLE_UV = [
+        ((1, 1, 0), (0.0, 0.0)),
+        ((3, 2, 0), (1.0, 0.0)),
+        ((1, 2, 1), (0.5, 1.0)),
+    ]
+    ORANGE = (0.95, 0.5, 0.0)
+
+    @app.add_update_callback()
+    def update(dt):
+        scene = app.scene()
+        scene.clear()
+        scene.add_axes((0, 0, 0), scale=2.0, thickness=5.0)
+        scene.add_triangle(TRIANGLE_UV, color=ORANGE, texture_handle=tex)
+
+    app.run()
+
+    if tex != 0:
+        app.renderer().unload_texture(_BRICK_TEX)
 
 
 if __name__ == "__main__":

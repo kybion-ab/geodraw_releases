@@ -20,125 +20,12 @@
 #include "geodraw/modules/earth/providers/maptiler_provider.hpp"
 #include "geodraw/modules/earth/earth_shape_edit.hpp"
 #include "geodraw/ui/imgui_plugin.h"
-#include "geodraw/modules/camera_trajectory/camera_trajectory_plugin.hpp"
 #include <iostream>
 #include <cstdlib>
 #include <filesystem>
-#include <set>
 
 using namespace geodraw;
 using namespace geodraw::earth;
-
-// Helper class for ImGui rendering in earth_viewer
-class EarthViewerUI {
-public:
-  EarthViewerUI(geodraw::App& app) : app_(app) {}
-  void draw();
-
-private:
-  void drawCommandWindow();
-  std::string formatKeyBinding(int key, int mods);
-
-  geodraw::App& app_;
-};
-
-std::string EarthViewerUI::formatKeyBinding(int k, int mods) {
-  if (k < 0) return "";
-
-  std::string result;
-
-  // Handle modifiers
-  if (mods & Mod::Ctrl)  result += "Ctrl+";
-  if (mods & Mod::Alt)   result += "Alt+";
-  if (mods & Mod::Shift) result += "Shift+";
-  if (mods & Mod::Super) result += "Super+";
-
-  // Handle key codes
-  if (k >= key(Key::A) && k <= key(Key::Z)) {
-    result += static_cast<char>('A' + (k - key(Key::A)));
-  } else if (k >= key(Key::D0) && k <= key(Key::D9)) {
-    result += static_cast<char>('0' + (k - key(Key::D0)));
-  } else if (k >= key(Key::F1) && k <= key(Key::F12)) {
-    result += "F" + std::to_string(k - key(Key::F1) + 1);
-  } else {
-    switch (k) {
-      case key(Key::Space):     result += "Space"; break;
-      case key(Key::Enter):     result += "Enter"; break;
-      case key(Key::Tab):       result += "Tab"; break;
-      case key(Key::Escape):    result += "Esc"; break;
-      case key(Key::Backspace): result += "Backspace"; break;
-      case key(Key::Delete):    result += "Delete"; break;
-      case key(Key::Up):        result += "Up"; break;
-      case key(Key::Down):      result += "Down"; break;
-      case key(Key::Left):      result += "Left"; break;
-      case key(Key::Right):     result += "Right"; break;
-      case key(Key::Equal):     result += "="; break;
-      case key(Key::Minus):     result += "-"; break;
-      default: result += "?"; break;
-    }
-  }
-  return result;
-}
-
-void EarthViewerUI::draw() {
-  drawCommandWindow();
-}
-
-void EarthViewerUI::drawCommandWindow() {
-  ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
-  ImGui::SetNextWindowSize(ImVec2(220, 0), ImGuiCond_FirstUseEver);
-
-  if (!ImGui::Begin("Commands", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-    ImGui::End();
-    return;
-  }
-
-  // Collect minor mode command names to filter them out from global commands
-  std::set<std::string> minorModeCommandNames;
-  for (const auto& mode : app_.getMinorModes()) {
-    for (const auto& cmd : mode->commands) {
-      minorModeCommandNames.insert(cmd.name);
-    }
-  }
-
-  ImGui::Text("Global Commands");
-  ImGui::Separator();
-
-  auto commands = app_.getCommands();
-  for (const auto& cmd : commands) {
-    // Skip minor mode commands (they'll appear in their own windows)
-    if (minorModeCommandNames.count(cmd.name)) continue;
-    // Skip empty command names
-    if (cmd.name.empty()) continue;
-
-    if (cmd.type == "toggle" && cmd.togglePtr) {
-      // Render as checkbox
-      bool value = *cmd.togglePtr;
-      if (ImGui::Checkbox(cmd.docstring.c_str(), &value)) {
-        cmd.callback();
-        app_.requestUpdate();
-      }
-    } else {
-      // Render as button
-      if (ImGui::Button(cmd.docstring.c_str())) {
-        cmd.callback();
-        app_.requestUpdate();
-      }
-    }
-
-    // Tooltip with command name and key binding
-    if (ImGui::IsItemHovered()) {
-      std::string tip = cmd.name;
-      std::string key = formatKeyBinding(cmd.key, cmd.mods);
-      if (!key.empty()) {
-        tip += " [" + key + "]";
-      }
-      ImGui::SetTooltip("%s", tip.c_str());
-    }
-  }
-
-  ImGui::End();
-}
 
 
 int main(int argc, char* argv[]) {
@@ -226,7 +113,6 @@ int main(int argc, char* argv[]) {
     app.camera.globeYaw = glm::radians(30.0f);
 
     // State
-    bool showInfo = true;
     bool showTileDebug = false;
     bool terrainEnabled = false;
     std::string currentRasterLayerId = maptiler::SATELLITE;
@@ -236,10 +122,6 @@ int main(int argc, char* argv[]) {
     bool show3DBuildings = false;
     bool showTextures = true;
 
-    // Camera trajectory plugin
-    CameraTrajectoryPlugin camTraj;
-    app.addModule(camTraj);
-
     MinorMode& layersMode = app.createMinorMode("Layers");
     app.activateMinorMode(layersMode);
 
@@ -247,8 +129,6 @@ int main(int argc, char* argv[]) {
     ShapeEditor shapeEditor;
 
     // Register commands
-    app.addToggle("toggle-info", showInfo, "Toggle info overlay", key(Key::I));
-
     app.addCmd("next-location", [&]() {
         currentLocation = (currentLocation + 1) % locations.size();
         auto& loc = locations[currentLocation];
@@ -326,33 +206,15 @@ int main(int argc, char* argv[]) {
     app.setDocstring(R"(=== Earth Viewer Demo ===
 
 Demonstrates satellite tile rendering with LOD management.
-Uses GLOBE mode with ECEF coordinates for seamless Earth viewing.
 
-Controls:
-  Mouse drag   - Rotate view around target
-  Right drag   - Pan (move target on Earth's surface)
-  Scroll       - Zoom in/out
-  Double-click - Set camera target to clicked point
-  H            - Show help with more details
+There are two viewer camera states, PIVOT and PAN:
+  Mouse drag              - Pivot around target, or pan along surface.
+  Double-click            - Set camera state to PIVOT
+  Right drag (left/right) - Set camera state to PAN.
+  Right drag (up/down)    - Zoom in/out
+  Scroll                  - Zoom in/out
 
-Features:
-  - Full Earth visible when zoomed out
-  - Double-click to target any point on globe
-  - Seamless zoom from orbital to ground level
-
-Layer Controls:
-  L            - Cycle raster base layer (satellite / hybrid / terrain)
-  V            - Toggle streets vector overlay
-  B            - Toggle buildings (when vector overlay is active)
-  R            - Toggle roads/streets (when vector overlay is active)
-  E            - Toggle 3D building extrusion
-
-3D Terrain (press 3):
-  - Uses quantized mesh terrain data (available zoom 0-13)
-  - Satellite imagery is draped on terrain mesh
-  - Shows real elevation for mountains and valleys
-
-Locations: Gothenburg, San Francisco, New York, London, Tokyo, Sydney, Paris, Cairo)");
+  H                       - Show help with more details)");
 
     // Use app.scene() so ray picking can access the geometry
     app.addScene("earth");
@@ -455,8 +317,8 @@ Locations: Gothenburg, San Francisco, New York, London, Tokyo, Sydney, Paris, Ca
             }
         }
 
-        // Render info overlay
-        if (showInfo) {
+        // Render info overlay (always on — required by MapTiler TOS)
+        {
             auto& ref = earth.getReference();
             char buf[256];
 
@@ -561,14 +423,10 @@ Locations: Gothenburg, San Francisco, New York, London, Tokyo, Sydney, Paris, Ca
         [&](void* ctx) { ImGui::SetCurrentContext((ImGuiContext*)ctx); drawLayersPanel(); },
         /* panelOpen= */ true});
 
-    // Create UI helper
-    EarthViewerUI ui(app);
-
     // Initialize ImGui plugin (wraps draw callback)
     ImGuiPlugin imgui(app);
     imgui.setImGuiCallback([&]() {
         imgui.drawPluginsPanel("geodraw");
-        ui.draw();
     });
 
     std::cout << "Starting Earth Viewer..." << std::endl;

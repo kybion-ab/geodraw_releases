@@ -14,54 +14,39 @@ Edit session controls (press TAB to enter edit mode):
   ENTER — commit edits (propagate changes to the source object)
   ESC   — cancel edits (revert to the last committed state)
 
-Status: STUB — requires Python bindings not yet implemented.
-Missing bindings:
-  - app.enable_editing()
-  - Shape3 as a mutable Python object with polygon/polyline construction
-  - scene.add_shape(shape3).with_id(n).with_type(s)  (editable rendering path)
-
 Run from the repo root:
     python python/demos/demo_editable.py
 """
 
 import geodraw
 
-
-# Intended implementation (requires missing bindings):
-#
-# def main():
-#     app = geodraw.App(1280, 720, "Demo Editable Geometry")
-#     app.enable_editing()
-#
-#     # Build an L-shaped editable polygon.
-#     shape = geodraw.Shape3()
-#     shape.add_ring([
-#         (-5, -5, 0), (-5,  0, 0), (-3,  0, 0),
-#         (-3, -3, 0), ( 0, -3, 0), ( 0, -5, 0),
-#         (-5, -5, 0),  # close the ring
-#     ])
-#
-#     TRIANGLE = [(1, 1, 0), (3, 2, 0), (1, 2, 1)]
-#     ORANGE = (0.95, 0.5, 0.0)
-#
-#     @app.add_update_callback()
-#     def update(dt):
-#         scene = app.scene()
-#         scene.clear()
-#         scene.add_axes((0, 0, 0), scale=2.0, thickness=5.0)
-#         scene.add_triangle(TRIANGLE, color=ORANGE)
-#         # Editable path: add_shape(mutable Shape3) + tagging.
-#         scene.add_shape(shape).with_id(1).with_type("EditableShape")
-#
-#     app.run()
+TRIANGLE = [(1, 1, 0), (3, 2, 0), (1, 2, 1)]
+ORANGE = (0.95, 0.5, 0.0)
 
 
 def main():
-    raise NotImplementedError(
-        "demo_editable requires missing Python bindings: "
-        "app.enable_editing(), the Shape3 Python class, "
-        "and scene.add_shape() with .with_id() / .with_type() tagging."
-    )
+    app = geodraw.App(1280, 720, "Demo Editable Geometry")
+    app.enable_editing()
+
+    # Build an L-shaped editable polygon.
+    # The shape object must remain alive for the entire run (non-owning pointer).
+    shape = geodraw.Shape3()
+    shape.add_ring([
+        (-5, -5, 0), (-5,  0, 0), (-3,  0, 0),
+        (-3, -3, 0), ( 0, -3, 0), ( 0, -5, 0),
+        (-5, -5, 0),  # close the ring
+    ])
+
+    @app.add_update_callback()
+    def update(dt):
+        scene = app.scene()
+        scene.clear()
+        scene.add_axes((0, 0, 0), scale=2.0, thickness=5.0)
+        scene.add_triangle(TRIANGLE, color=ORANGE)
+        # Editable path: add_shape(mutable Shape3) + tagging.
+        scene.add_shape(shape).with_id(1).with_type("EditableShape")
+
+    app.run()
 
 
 if __name__ == "__main__":

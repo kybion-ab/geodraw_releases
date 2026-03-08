@@ -4,8 +4,8 @@
  * Demonstrates loading PNG textures and applying them to geometry.
  * The demo falls back gracefully to solid colours if texture files are missing.
  *
- * Texture files expected (relative to the build directory at run time):
- *   ../data/textures/triangle.png  — applied to the triangle
+ * Texture files expected (relative to the repo root at run time):
+ *   data/textures/brick.png  — applied to the triangle
  *
  * Pattern:
  *   GLuint tex = app.getRenderer().loadTexture("path/to/file.png");
@@ -38,7 +38,7 @@ struct DemoGeometry {
 };
 
 void demoGeometryInit(App& app, DemoGeometry& geometry) {
-  geometry.triangleTex = app.getRenderer().loadTexture("../data/textures/brick.png");
+  geometry.triangleTex = app.getRenderer().loadTexture("data/textures/brick.png");
   if (geometry.triangleTex == 0) {
     std::cout << "Note: brick.png not found — triangle will be solid orange.\n";
   }
@@ -68,7 +68,7 @@ int main() {
     app.run();
 
     // Release textures when done.
-    if (geometry.triangleTex != 0) app.getRenderer().unloadTexture("../data/textures/brick.png");
+    if (geometry.triangleTex != 0) app.getRenderer().unloadTexture("data/textures/brick.png");
 
     return 0;
 }

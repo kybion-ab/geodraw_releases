@@ -33,6 +33,7 @@
 #include "geodraw/ui/imgui_plugin.h"
 #include "geodraw/ui/tooltip_system.hpp"
 #include "geodraw/modules/clustering/marker_clusterer.hpp"
+#include "geodraw/modules/earth/earth_shape_edit.hpp"
 
 #ifdef GEODRAW_HAS_IMGUI
 #include <imgui.h>
@@ -88,13 +89,30 @@ int main(int argc, char* argv[]) {
     EarthLayer earth(config, app.getRenderer());
     earth.setCoordinateOutput(CoordinateOutput::ECEF);
 
+    // Vector overlay layer (streets)
+    EarthLayerConfig vectorConfig = config;
+    vectorConfig.layerId = maptiler::STREETS;
+    EarthLayer vectorEarth(vectorConfig, app.getRenderer());
+    vectorEarth.setCoordinateOutput(CoordinateOutput::ECEF);
+
     // App-level state
     std::vector<ScenarioPin> scenarioPins;
-    bool   showPins      = true;
-    bool   showEarth     = true;
-    bool   terrainEnabled = false;
+    bool   showPins           = true;
+    bool   showEarth          = true;
+    bool   terrainEnabled     = false;
+    bool   showTextures       = true;
+    bool   vectorOverlayEnabled = false;
+    bool   showBuildings      = true;
+    bool   showRoads          = true;
+    bool   show3DBuildings    = false;
+    bool   showTileDebug      = false;
     std::string currentLayerId = maptiler::SATELLITE;
     int    hoveredPinIndex = -1;
+
+    MinorMode& layersMode = app.createMinorMode("Layers");
+    app.activateMinorMode(layersMode);
+
+    ShapeEditor shapeEditor;
 
     TooltipSystem tooltipSystem;
     clustering::MarkerClusterer markerClusterer;
@@ -143,11 +161,14 @@ int main(int argc, char* argv[]) {
 
     struct Location { const char* name; double lat, lon; };
     std::vector<Location> locations = {
-        {"Gothenburg",   57.7085653,  11.9404429},
-        {"San Francisco",37.7749,    -122.4194},
-        {"New York",     40.7128,     -74.0060},
-        {"London",       51.5074,      -0.1278},
-        {"Tokyo",        35.6762,     139.6503},
+        {"Gothenburg",    57.7085653,  11.9404429},
+        {"San Francisco", 37.7749,    -122.4194},
+        {"New York",      40.7128,     -74.0060},
+        {"London",        51.5074,      -0.1278},
+        {"Tokyo",         35.6762,     139.6503},
+        {"Sydney",       -33.8688,    151.2093},
+        {"Paris",         48.8566,      2.3522},
+        {"Cairo",         30.0444,     31.2357},
     };
     int curLoc = 0;
 
@@ -199,9 +220,56 @@ int main(int argc, char* argv[]) {
         }
     }, "Close scenario view", key(Key::Escape));
 
-    app.addToggle("toggle-terrain", terrainEnabled, "Toggle 3D terrain", key(Key::D3));
-    app.addToggle("toggle-pins",    showPins,        "Toggle scenario pins", key(Key::I));
-    app.addToggle("toggle-earth",   showEarth,       "Toggle earth layer",   key(Key::E));
+    auto cycleRasterLayer = [&]() {
+        auto all = provider->availableLayers();
+        std::vector<TileLayerConfig> rasterLayers;
+        for (auto& l : all) if (l.isRasterLayer()) rasterLayers.push_back(l);
+        if (rasterLayers.empty()) return;
+        int idx = 0;
+        for (size_t i = 0; i < rasterLayers.size(); i++)
+            if (rasterLayers[i].id == currentLayerId) { idx = int(i); break; }
+        idx = (idx + 1) % int(rasterLayers.size());
+        currentLayerId = rasterLayers[idx].id;
+        earth.setLayerId(currentLayerId);
+    };
+    app.addCmd("cycle-raster-layer", cycleRasterLayer,
+               "Cycle raster base layer", key(Key::L), 0, true, layersMode);
+
+    app.addToggle("toggle-terrain",        terrainEnabled,       "Toggle 3D terrain",                key(Key::D3));
+    app.addToggle("toggle-pins",           showPins,             "Toggle scenario pins",              key(Key::I));
+    app.addToggle("toggle-earth",          showEarth,            "Toggle earth layer");
+    app.addToggle("toggle-textures",       showTextures,         "Toggle texture rendering",          key(Key::X), 0, true, layersMode);
+    app.addToggle("toggle-vector-overlay", vectorOverlayEnabled, "Toggle streets vector overlay",     key(Key::V), 0, true, layersMode);
+    app.addToggle("toggle-buildings",      showBuildings,        "Toggle buildings",                  key(Key::B), 0, true, layersMode);
+    app.addToggle("toggle-roads",          showRoads,            "Toggle roads/streets",              key(Key::R), 0, true, layersMode);
+    app.addToggle("toggle-3d-buildings",   show3DBuildings,      "Toggle 3D building extrusion",
+                  key(Key::E), 0, true, layersMode);
+
+    app.addToggle("toggle-tile-debug", showTileDebug, "Toggle tile debug overlay", key(Key::D));
+
+    app.addCmd("increase-lod", [&]() {
+        float bias = std::min(earth.getLodBias() * 1.5f, 4.0f);
+        earth.setLodBias(bias);
+        std::cout << "LOD bias: " << bias << "\n";
+        app.requestUpdate();
+    }, "Increase LOD detail level", key(Key::Equal));
+
+    app.addCmd("decrease-lod", [&]() {
+        float bias = std::max(earth.getLodBias() / 1.5f, 0.25f);
+        earth.setLodBias(bias);
+        std::cout << "LOD bias: " << bias << "\n";
+        app.requestUpdate();
+    }, "Decrease LOD detail level", key(Key::Minus));
+
+    app.addCmd("print-coords", [&]() {
+        glm::dvec3 tgt = app.camera.getGlobeTargetECEF();
+        ECEFCoord ec(tgt.x, tgt.y, tgt.z);
+        GeoCoord geo = ecefToGeo(ec).toDegrees();
+        std::cout << "\n=== Target Coordinates ===\n"
+                  << "WGS84: lat=" << geo.latitude << ", lon=" << geo.longitude << "\n"
+                  << "ECEF: (" << tgt.x << ", " << tgt.y << ", " << tgt.z << ") m\n"
+                  << "Altitude: " << app.camera.globeAltitude << " m\n";
+    }, "Print target coordinates (WGS84/ECEF)", key(Key::C));
 
     bool debugSceneInfo = false;
     app.addCmd("debug-scene-info", [&debugSceneInfo]() { debugSceneInfo = true; },
@@ -221,9 +289,25 @@ int main(int argc, char* argv[]) {
     app.addModule(videoCap);
     app.activateMinorMode(*videoCap.getMinorMode());
 
+    app.addModule(shapeEditor);
+
     // Load car model and hand it to the scenario plugin for vehicle rendering.
     {
-        auto mdl = gltf::loadGLB("../data/glb_files/GreenCar.glb", app.getRenderer());
+        namespace fs = std::filesystem;
+        auto findDataRoot = []() -> fs::path {
+            if (const char* root = getenv("GEODRAW_ROOT"))
+                return fs::path(root);
+            auto p = fs::current_path();
+            for (int i = 0; i < 4; ++i) {
+                if (fs::exists(p / "data" / "glb_files")) return p;
+                p = p.parent_path();
+            }
+            return fs::current_path();
+        };
+        auto dataRoot = findDataRoot();
+        auto mdl = gltf::loadGLB(
+            (dataRoot / "data" / "glb_files" / "GreenCar.glb").string(),
+            app.getRenderer());
         if (!mdl || !mdl->isValid())
             std::cerr << "Warning: Failed to load car model, using wireframe fallback\n";
         else
@@ -244,13 +328,25 @@ view them as pins on the globe, and load them for playback.
     app.addUpdateCallback([&](float dt) {
         (void)dt;
         earth.setTerrainEnabled(terrainEnabled);
+        earth.setShowTextures(showTextures);
+        earth.setShowWireframe(showTileDebug);
         bool loading = earth.update(app.camera, app.getWidth(), app.getHeight());
+
+        if (vectorOverlayEnabled) {
+            vectorEarth.setShowBuildings(showBuildings);
+            vectorEarth.setShowRoads(showRoads);
+            vectorEarth.setShow3DBuildings(show3DBuildings);
+            vectorEarth.setShowWireframe(showTileDebug);
+            bool vLoading = vectorEarth.update(app.camera, app.getWidth(), app.getHeight());
+            loading = loading || vLoading;
+        }
 
         Scene& scene = app.scene();
         scene.clear();
         scene.setOrigin(app.camera.getGlobeTargetECEF());
 
         if (showEarth) earth.addToScene(scene);
+        if (vectorOverlayEnabled) vectorEarth.addToScene(scene);
 
         // Render scenario pins with clustering
         if (showPins && !scenarioPins.empty()) {
@@ -286,14 +382,57 @@ view them as pins on the globe, and load them for playback.
     // Draw callback
     // -------------------------------------------------------------------------
     app.addDrawCallback([&]() {
-        if (earth.tick(app.camera, app.getWidth(), app.getHeight()))
+        if (earth.tick(app.camera, app.getWidth(), app.getHeight()) ||
+            (vectorOverlayEnabled && vectorEarth.tick(app.camera, app.getWidth(), app.getHeight())))
             app.requestUpdate();
 
-        // app.scene() is rendered automatically by renderScenePairs() in App::run().
-        // Calling render() here again would submit every draw command twice.
-        app.getRenderer().renderText("Map data: MapTiler, OpenStreetMap contributors",
-                                     10, app.getHeight() - 20,
-                                     glm::vec3(0.5f, 0.5f, 0.5f));
+        // app.scene() is rendered automatically by renderScenePairs() — do NOT call render() here.
+
+        // Tile debug labels
+        if (showTileDebug) {
+            auto tiles = earth.getVisibleTileDebugInfo();
+            glm::dvec3 origin  = app.camera.getGlobeTargetECEF();
+            glm::dvec3 camECEF = app.camera.getGlobeCameraECEF();
+            for (const auto& t : tiles) {
+                glm::dvec3 tileNormal = glm::normalize(t.centerECEF);
+                glm::dvec3 viewDir    = glm::normalize(camECEF - t.centerECEF);
+                if (glm::dot(tileNormal, viewDir) < 0.0) continue;
+                glm::vec3 local = glm::vec3(t.centerECEF - origin);
+                auto sp = app.camera.projectToScreen(local, float(app.getWidth()), float(app.getHeight()));
+                if (!sp) continue;
+                glm::vec3 color = t.hasTexture && !t.usingFallback
+                                      ? glm::vec3(0.9f, 0.9f, 0.2f)
+                                  : t.usingFallback
+                                      ? glm::vec3(0.95f, 0.5f, 0.0f)
+                                      : glm::vec3(1.0f, 0.4f, 0.0f);
+                app.getRenderer().renderText(t.key, sp->x, sp->y, color, 1.5f);
+            }
+        }
+
+        // Text info overlay (earth_viewer baseline)
+        {
+            char buf[256];
+            snprintf(buf, sizeof(buf), "Location: %s", locations[curLoc].name);
+            app.getRenderer().renderText(buf, 10, 30, glm::vec3(1.0f, 1.0f, 1.0f));
+
+            snprintf(buf, sizeof(buf), "Tiles: %d visible, %d loading, %d cached",
+                     earth.visibleTileCount(), earth.loadingTileCount(), earth.gpuTextureCount());
+            app.getRenderer().renderText(buf, 10, 50, glm::vec3(0.8f, 0.8f, 0.8f));
+
+            double alt = app.camera.globeAltitude;
+            if (alt > 1000) snprintf(buf, sizeof(buf), "Altitude: %.1f km", alt / 1000.0);
+            else            snprintf(buf, sizeof(buf), "Altitude: %.0f m", alt);
+            app.getRenderer().renderText(buf, 10, 70, glm::vec3(0.8f, 0.8f, 0.8f));
+
+            snprintf(buf, sizeof(buf), "Layer: %s", currentLayerId.c_str());
+            app.getRenderer().renderText(buf, 10, 90, glm::vec3(0.8f, 0.8f, 0.8f));
+
+            snprintf(buf, sizeof(buf), "Terrain: %s", terrainEnabled ? "ON" : "OFF");
+            app.getRenderer().renderText(buf, 10, 110, glm::vec3(0.8f, 0.8f, 0.8f));
+
+            app.getRenderer().renderText("Map data: MapTiler, OpenStreetMap contributors",
+                                         10, app.getHeight() - 20, glm::vec3(0.5f, 0.5f, 0.5f));
+        }
     });
 
     // -------------------------------------------------------------------------
@@ -302,12 +441,57 @@ view them as pins on the globe, and load them for playback.
     RLGuiUI ui(app, earth, scenarioPins, scenario,
                 showPins, terrainEnabled, currentLayerId, provider);
 
+    auto drawLayersPanel = [&]() {
+        std::string rasterName = currentLayerId;
+        for (auto& l : provider->availableLayers())
+            if (l.id == currentLayerId) { rasterName = l.displayName; break; }
+
+        ImGui::SetNextWindowPos(ImVec2(240, 10), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(ImVec2(220, 0), ImGuiCond_FirstUseEver);
+        ImGui::Begin("Layers", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+
+        ImGui::SeparatorText("Raster");
+        if (ImGui::Checkbox("Texture rendering", &showTextures))
+            app.requestUpdate();
+        ImGui::Text("%s", rasterName.c_str());
+        ImGui::SameLine();
+        if (ImGui::SmallButton("Next [L]")) { cycleRasterLayer(); app.requestUpdate(); }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("cycle-raster-layer");
+        if (ImGui::Checkbox("3D terrain mesh", &terrainEnabled))
+            app.requestUpdate();
+
+        ImGui::SeparatorText("Vector");
+        if (ImGui::Checkbox("Streets overlay", &vectorOverlayEnabled))
+            app.requestUpdate();
+        if (vectorOverlayEnabled) {
+            ImGui::Indent(12.0f);
+            if (ImGui::Checkbox("Buildings", &showBuildings))
+                app.requestUpdate();
+            ImGui::SameLine();
+            if (!showBuildings) ImGui::BeginDisabled();
+            if (ImGui::Checkbox("3D extrude", &show3DBuildings))
+                app.requestUpdate();
+            if (!showBuildings) ImGui::EndDisabled();
+            if (ImGui::Checkbox("Streets", &showRoads))
+                app.requestUpdate();
+            ImGui::Unindent(12.0f);
+        }
+
+        ImGui::End();
+    };
+
+    app.registerPluginPanel({"Layers", &layersMode,
+        [&](void* ctx) { ImGui::SetCurrentContext((ImGuiContext*)ctx); drawLayersPanel(); },
+        /* panelOpen= */ true});
+
+    app.registerPluginPanel({"Scenario", const_cast<MinorMode*>(scenario.getMinorMode()),
+        [&](void* ctx) { scenario.drawImGuiPanel(app.camera, app, ctx); },
+        /* panelOpen= */ false});
+
     ImGuiPlugin imgui(app);
     imgui.setImGuiCallback([&]() {
-        imgui.drawMasterWindow();
+        imgui.drawPluginsPanel("geodraw");
         ui.draw();
-        camTraj.drawImGuiPanel(app.camera, app, ImGui::GetCurrentContext());
-        videoCap.drawImGuiPanel(app, ImGui::GetCurrentContext());
 
         // Render pins / clusters as screen-space circles
         if (showPins && !scenarioPins.empty()) {
@@ -385,7 +569,9 @@ view them as pins on the globe, and load them for playback.
     });
 
     std::cout << "Starting RL GUI...\n"
-              << "Press P to pick nearest scenario, N/M to change location\n";
+              << "Press N/M to change location, P to pick nearest scenario\n"
+              << "Press D for tile debug, = / - for LOD bias, C to print coordinates\n"
+              << "Press X to toggle earth layer, E to toggle 3D building extrusion\n";
 
     app.run();
     return 0;
