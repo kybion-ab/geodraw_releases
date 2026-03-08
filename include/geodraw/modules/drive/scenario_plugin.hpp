@@ -30,6 +30,7 @@
 
 #include "geodraw/export/export.hpp"
 #include "geodraw/app/app_module.hpp"
+#include <functional>
 #include <memory>
 #include <string>
 
@@ -123,6 +124,22 @@ public:
     bool isPlaying() const;
 
     //=========================================================================
+    // File/folder picker callbacks (optional — set by host app)
+    //=========================================================================
+
+    /// Callback invoked when the user clicks a "Browse..." button for a folder.
+    /// Receives the current path as default; returns selected path or "" on cancel.
+    /// If not set, an inline ImGui dir browser is shown as fallback.
+    using FolderPickFn = std::function<std::string(const std::string& defaultPath)>;
+    void setFolderPickCallback(FolderPickFn cb);
+
+    /// Callback invoked when the user clicks a "Browse..." button for a .json file.
+    /// Receives the current path as default; returns selected path or "" on cancel.
+    /// If not set, an inline ImGui file browser is shown as fallback.
+    using FilePickFn = std::function<std::string(const std::string& defaultPath)>;
+    void setFilePickCallback(FilePickFn cb);
+
+    //=========================================================================
     // ImGui panel
     //=========================================================================
 
@@ -151,8 +168,8 @@ public:
     //=========================================================================
 
     /// Create a self-contained App, load a scenario, and run to completion.
-    static void runStandalone(const std::string& filepath,
-                               int width = 1280, int height = 720);
+    void runStandalone(const std::string& filepath,
+                       int width = 1280, int height = 720);
 
 private:
     struct Impl;

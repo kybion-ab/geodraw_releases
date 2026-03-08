@@ -26,6 +26,7 @@
 #include "rl_gui_ui.hpp"
 
 #include "geodraw/log/log.hpp"
+#include <nfd.hpp>
 #include "geodraw/modules/earth/providers/maptiler_provider.hpp"
 #include "geodraw/modules/camera_trajectory/camera_trajectory_plugin.hpp"
 #include "geodraw/modules/video_capture/video_capture_plugin.hpp"
@@ -55,6 +56,8 @@ using namespace geodraw::earth;
 // =============================================================================
 
 int main(int argc, char* argv[]) {
+    NFD::Guard nfdGuard;
+
     geodraw::parse_log_args(argc, argv);
 
     std::string apiKey;
@@ -123,6 +126,27 @@ int main(int argc, char* argv[]) {
     app.addScene("rl_gui");  // create scene before plugin uses it
 
     ScenarioPlugin scenario(app.scene());
+
+    // Wire native file/folder pickers into the scenario plugin's browse buttons
+    scenario.setFolderPickCallback([](const std::string& def) -> std::string {
+        NFD::UniquePath out;
+        if (NFD::PickFolder(out, def.empty() ? nullptr : def.c_str()) == NFD_OKAY)
+            return out.get();
+        return "";
+    });
+    scenario.setFilePickCallback([](const std::string& def) -> std::string {
+        nfdfilteritem_t filters[] = {{"JSON scenario", "json"}};
+        NFD::UniquePath out;
+        std::string dir = def;
+        // Use the directory of the current file as default path
+        if (!dir.empty()) {
+            namespace fs = std::filesystem;
+            if (fs::is_regular_file(dir)) dir = fs::path(dir).parent_path().string();
+        }
+        if (NFD::OpenDialog(out, filters, 1, dir.empty() ? nullptr : dir.c_str()) == NFD_OKAY)
+            return out.get();
+        return "";
+    });
 
     // Register tooltip providers before attach so they're ready
     tooltipSystem.registerProvider("ScenarioPin",

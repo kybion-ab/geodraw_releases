@@ -114,9 +114,8 @@ private:
     std::shared_ptr<geodraw::earth::TileProvider> provider_;
 
     char directoryPath_[512] = "";
-    bool showFileBrowser_    = false;
-    std::string currentBrowserDir_;
     int selectedPinIndex_    = -1;
+    int skippedCount_        = 0;
 
     std::vector<ScenarioPin> allScenarioPins_;
     ScenarioFilter           filter_;

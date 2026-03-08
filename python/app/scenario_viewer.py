@@ -25,6 +25,13 @@ def main():
 
     scenario = geodraw.ScenarioPlugin()
 
+    scenario.set_folder_pick_callback(
+        lambda default_path: geodraw.pick_folder(default_path)
+    )
+    scenario.set_file_pick_callback(
+        lambda default_path: geodraw.pick_file(default_path, [("JSON scenario", "json")])
+    )
+
     car_model = app.load_glb(DEFAULT_CAR_MODEL)
     if car_model is not None and car_model.is_valid:
         scenario.set_car_model(car_model)
