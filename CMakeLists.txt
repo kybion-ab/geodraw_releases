@@ -75,6 +75,8 @@ if(GEODRAW_WITH_IMGUI)
         GIT_TAG        v1.2.1
     )
     FetchContent_MakeAvailable(nfd)
+    set_property(TARGET geodraw APPEND PROPERTY
+        INTERFACE_INCLUDE_DIRECTORIES "${nfd_SOURCE_DIR}/src/include")    
 endif()
 
 # ----------------------
