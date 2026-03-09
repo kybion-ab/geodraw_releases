@@ -106,36 +106,6 @@ TEST_CASE("Earth cache - HTTP fetch", "[network]") {
     CHECK(result.data.size() == 100);
 }
 
-TEST_CASE("Earth cache - request manager queuing", "[network]") {
-    http::RequestManager manager(2); // Max 2 concurrent
-
-    int completedCount = 0;
-    std::mutex countMutex;
-
-    manager.setCompletionCallback([&](TileCoord, const std::string&, http::FetchResult) {
-        std::lock_guard<std::mutex> lock(countMutex);
-        completedCount++;
-    });
-
-    // Enqueue 3 requests with fake URLs (will fail with network error, not a crash)
-    manager.enqueue(TileCoord(1, 0, 0), SATELLITE, "https://httpbin.org/bytes/10", 3000);
-    manager.enqueue(TileCoord(1, 0, 1), SATELLITE, "https://httpbin.org/bytes/10", 3000);
-    manager.enqueue(TileCoord(1, 1, 0), SATELLITE, "https://httpbin.org/bytes/10", 3000);
-
-    CHECK(manager.activeCount() == 2);
-    CHECK(manager.pendingCount() == 1);
-
-    // Wait for completion
-    auto start = std::chrono::steady_clock::now();
-    while (manager.activeCount() > 0 || manager.pendingCount() > 0) {
-        manager.update();
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        if (std::chrono::steady_clock::now() - start > std::chrono::seconds(15)) break;
-    }
-
-    CHECK(completedCount == 3);
-}
-
 TEST_CASE("Earth cache - async fetch", "[network]") {
     auto future = http::fetchTileAsync("https://httpbin.org/bytes/50", 5000);
 

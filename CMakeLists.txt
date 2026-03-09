@@ -48,7 +48,7 @@ if(APPLE)
     set(GEODRAW_LIB "${CMAKE_CURRENT_LIST_DIR}/lib/macos/libgeodraw.1.dylib")
 elseif(UNIX)
     set_target_properties(geodraw PROPERTIES
-        IMPORTED_LOCATION "${CMAKE_CURRENT_LIST__DIR}/lib/linux/libgeodraw.so.1"
+        IMPORTED_LOCATION "${CMAKE_CURRENT_LIST_DIR}/lib/linux/libgeodraw.so.1"
         IMPORTED_SONAME   "libgeodraw.so.1"
     )
     set(CMAKE_BUILD_RPATH "${CMAKE_CURRENT_LIST_DIR}/lib/linux")
