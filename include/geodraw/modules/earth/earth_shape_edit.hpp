@@ -42,7 +42,7 @@ public:
 #ifdef GEODRAW_HAS_IMGUI
     /// Draw the Shape Edit ImGui panel as a standalone window.
     /// Call inside imgui.setImGuiCallback() for non-drawPluginsPanel use.
-    void drawImGuiPanel(App& app, void* imguiCtx = nullptr);
+    void drawImGuiPanel(App& app, ImGuiCtx imguiCtx = {});
 #endif
 
     // Accessors

@@ -15,7 +15,7 @@ import geodraw
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 DEFAULT_SCENARIO = str(_REPO_ROOT / "data" / "examples" / "tfrecord-00000-of-01000_4.json")
-DEFAULT_CAR_MODEL = str(_REPO_ROOT / "data" / "glb_files" / "GreenCar.glb")
+DEFAULT_CAR_MODEL = str(_REPO_ROOT / "data" / "glb_files" / "WhiteCar.glb")
 
 
 def main():

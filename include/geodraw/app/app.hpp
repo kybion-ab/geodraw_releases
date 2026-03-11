@@ -17,6 +17,7 @@
 
 #include "geodraw/export/export.hpp"
 #include "geodraw/app/app_module.hpp"
+#include "geodraw/app/imgui_ctx.hpp"
 
 #include <functional>
 #include <optional>
@@ -90,7 +91,7 @@ struct GEODRAW_API MinorMode {
 struct GEODRAW_API PluginPanelInfo {
     std::string name;                              ///< Display name (title bar + checklist)
     MinorMode*  mode        = nullptr;             ///< Associated minor mode (may be null)
-    std::function<void(void* ctx)> drawContents;   ///< Draw panel contents (no Begin/End)
+    std::function<void(ImGuiCtx)> drawContents;    ///< Draw panel contents (no Begin/End)
     bool panelOpen   = true;  ///< Persisted open/hidden state (managed by ImGuiPlugin)
     bool wasExpanded = true;  ///< Was window expanded last frame? (collapse detection)
     bool forceExpand = false; ///< Force-expand on next draw (set after checkbox re-enables)
@@ -397,8 +398,6 @@ public:
 
   bool verbose = false;   // Set to true to get verbose printouts.
   bool queryQuit = false; // Set to true to avoid quitting Gui by mistake.
-
-  bool forceUpdatePersistent = false;
 
   // Perform depth-based picking at screen position
   // Returns world position if valid geometry hit, nullopt otherwise

@@ -93,11 +93,17 @@ struct GEODRAW_API DrawCmd {
   std::string objectType;      // Optional type name for identification
   bool hasObjectId() const { return objectId != 0; }
 
+  // Index buffer for EBO rendering (glDrawElements).
+  // When non-empty, renderer uploads an EBO and uses glDrawElements.
+  // Unused for flat-shaded paths (which require expanded per-face normals).
+  std::vector<uint32_t> indices;
+
   // Persistent GPU resources (managed by renderer, freed by Scene::clear())
   // mutable so the renderer can cache VBOs on a const DrawCmd reference
   mutable GLuint vao = 0;     // VAO (stores attrib layout + VBO binding)
   mutable GLuint vbo = 0;     // Position (or interleaved pos+UV) VBO; 0 = not yet uploaded
   mutable GLuint normVbo = 0; // Normals VBO (flat shader path only)
+  mutable GLuint ebo = 0;     // Element Buffer Object (index buffer); 0 = not uploaded
 };
 
 /**

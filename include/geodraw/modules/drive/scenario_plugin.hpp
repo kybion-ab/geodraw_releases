@@ -30,6 +30,7 @@
 
 #include "geodraw/export/export.hpp"
 #include "geodraw/app/app_module.hpp"
+#include "geodraw/app/imgui_ctx.hpp"
 #include <functional>
 #include <memory>
 #include <string>
@@ -150,7 +151,7 @@ public:
     /// can call ImGui::SetCurrentContext() before making any ImGui calls.
     /// (Required when ImGui is compiled separately into the host binary and
     /// the shared library — each has its own GImGui global.)
-    void drawImGuiPanel(Camera& camera, App& app, void* imguiCtx = nullptr);
+    void drawImGuiPanel(Camera& camera, App& app, ImGuiCtx imguiCtx = {});
 #endif
 
     //=========================================================================

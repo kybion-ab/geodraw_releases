@@ -15,7 +15,7 @@
  *   Both the main binary (rl_gui) and the shared library (libgeodraw) compile
  *   their own copy of ImGui, each with its own GImGui global.  Any ImGui call
  *   inside shared-library code must use the main binary's context; pass it
- *   explicitly as ImGui::GetCurrentContext() at the call site.
+ *   explicitly via ImGuiCtx(ImGui::GetCurrentContext()) at the call site.
  *******************************************************************************/
 
 #include "geodraw/app/app.hpp"
@@ -50,7 +50,7 @@ void UpdateDemoGeometry(Scene &scene, DemoGeometry &gui) {
 void DemoImGuiCallback(App& app, DemoGeometry &geometry, CameraTrajectoryPlugin& camTraj) {
   // Pass ImGui::GetCurrentContext() so the shared-library code uses the
   // correct GImGui global (see note at the top of this file).
-  camTraj.drawImGuiPanel(app.camera, app, ImGui::GetCurrentContext());
+  camTraj.drawImGuiPanel(app.camera, app, geodraw::ImGuiCtx(ImGui::GetCurrentContext()));
 }
 
 

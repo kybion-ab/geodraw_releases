@@ -420,7 +420,7 @@ There are two viewer camera states, PIVOT and PAN:
 
     // Register Layers as a plugin panel so drawPluginsPanel() can manage it
     app.registerPluginPanel({"Layers", &layersMode,
-        [&](void* ctx) { ImGui::SetCurrentContext((ImGuiContext*)ctx); drawLayersPanel(); },
+        [&](ImGuiCtx ctx) { ImGui::SetCurrentContext((ImGuiContext*)ctx.ptr); drawLayersPanel(); },
         /* panelOpen= */ true});
 
     // Initialize ImGui plugin (wraps draw callback)

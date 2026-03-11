@@ -13,7 +13,7 @@
  *   app.addModule(videoCap);
  *
  *   // In ImGui callback:
- *   videoCap.drawImGuiPanel(app, ImGui::GetCurrentContext());
+ *   videoCap.drawImGuiPanel(app, ImGuiCtx(ImGui::GetCurrentContext()));
  *
  * Author  : Magnus Nilsson, Kybion AB
  * Date    : 2026-02-20
@@ -23,6 +23,7 @@
 #pragma once
 
 #include "geodraw/app/app_module.hpp"
+#include "geodraw/app/imgui_ctx.hpp"
 #include "geodraw/export/export.hpp"
 #include "geodraw/modules/camera_trajectory/camera_trajectory_plugin.hpp"
 
@@ -56,7 +57,7 @@ public:
      * Call inside an imgui.setImGuiCallback() lambda.
      * Pass ImGui::GetCurrentContext() as imguiCtx.
      */
-    void drawImGuiPanel(App& app, void* imguiCtx = nullptr);
+    void drawImGuiPanel(App& app, ImGuiCtx imguiCtx = {});
 #endif
 
     MinorMode* getMinorMode() { return minorMode_; }

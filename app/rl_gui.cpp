@@ -330,7 +330,7 @@ int main(int argc, char* argv[]) {
         };
         auto dataRoot = findDataRoot();
         auto mdl = gltf::loadGLB(
-            (dataRoot / "data" / "glb_files" / "GreenCar.glb").string(),
+            (dataRoot / "data" / "glb_files" / "WhiteCar.glb").string(),
             app.getRenderer());
         if (!mdl || !mdl->isValid())
             std::cerr << "Warning: Failed to load car model, using wireframe fallback\n";
@@ -505,11 +505,11 @@ view them as pins on the globe, and load them for playback.
     };
 
     app.registerPluginPanel({"Layers", &layersMode,
-        [&](void* ctx) { ImGui::SetCurrentContext((ImGuiContext*)ctx); drawLayersPanel(); },
+        [&](ImGuiCtx ctx) { ImGui::SetCurrentContext((ImGuiContext*)ctx.ptr); drawLayersPanel(); },
         /* panelOpen= */ true});
 
     app.registerPluginPanel({"Scenario", const_cast<MinorMode*>(scenario.getMinorMode()),
-        [&](void* ctx) { scenario.drawImGuiPanel(app.camera, app, ctx); },
+        [&](ImGuiCtx ctx) { scenario.drawImGuiPanel(app.camera, app, ctx); },
         /* panelOpen= */ false});
 
     ImGuiPlugin imgui(app);

@@ -227,6 +227,8 @@ struct ParsedVectorTile {
     std::vector<Road> roads;
     std::vector<Building> buildings;
     std::vector<Water> water;
+    Mesh3 buildingsMesh;        // Combined flat footprints (one mesh per tile)
+    Mesh3 buildingsMesh3D;      // Combined 3D extrusions (one mesh per tile)
     bool parsed = false;        // True if parsing succeeded
     std::string errorMessage;   // Error message if parsing failed
 };

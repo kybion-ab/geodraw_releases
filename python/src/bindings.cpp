@@ -824,6 +824,36 @@ public:
         app_.requestUpdate();
     }
 
+    void set_orbit_camera(py::object target,
+                          float yaw_deg = 30.0f,
+                          float pitch_deg = 30.0f,
+                          float distance = 0.0f) {
+        glm::vec3 t{0.0f};
+        if (!target.is_none()) {
+            auto p = toPos3(target.cast<py::sequence>());
+            t = glm::vec3(p.pos.x, p.pos.y, p.pos.z);
+        }
+        app_.camera.setMode(geodraw::Camera::CameraMode::ORBIT);
+        app_.camera.setTarget(t);
+        app_.camera.orbitYaw   = glm::radians(yaw_deg);
+        app_.camera.orbitPitch = glm::radians(pitch_deg);
+        app_.camera.distance   = distance;
+        app_.requestUpdate();
+    }
+
+    void set_globe_camera(double lat = 0.0, double lon = 0.0,
+                          double altitude = 10000000.0,
+                          float yaw_deg = 0.0f,
+                          float pitch_deg = 45.0f) {
+        app_.camera.setMode(geodraw::Camera::CameraMode::GLOBE);
+        app_.camera.globeTargetLat = lat;
+        app_.camera.globeTargetLon = lon;
+        app_.camera.globeAltitude  = altitude;
+        app_.camera.globeYaw   = glm::radians(yaw_deg);
+        app_.camera.globePitch = glm::radians(pitch_deg);
+        app_.requestUpdate();
+    }
+
     void request_continuous_update(std::string reason) {
         app_.requestContinuousUpdate(reason.c_str());
     }
@@ -1060,7 +1090,7 @@ public:
 
 #ifdef GEODRAW_HAS_IMGUI
     void draw_imgui_panel(PyApp& pyApp) {
-        plugin_.drawImGuiPanel(pyApp.getApp().camera, pyApp.getApp(), nullptr);
+        plugin_.drawImGuiPanel(pyApp.getApp().camera, pyApp.getApp());
     }
 #endif
 
@@ -1107,11 +1137,11 @@ private:
 #ifdef GEODRAW_HAS_IMGUI
 // Out-of-line definitions: require PyApp to be fully declared.
 void PyCameraTrajectoryPlugin::draw_imgui_panel(PyApp& pyApp) {
-    // nullptr: context already set (Python runs single-process, single dylib).
-    plugin_.drawImGuiPanel(pyApp.getApp().camera, pyApp.getApp(), nullptr);
+    // No context needed: Python runs single-process, single dylib.
+    plugin_.drawImGuiPanel(pyApp.getApp().camera, pyApp.getApp());
 }
 void PyVideoCapturePlugin::draw_imgui_panel(PyApp& pyApp) {
-    plugin_.drawImGuiPanel(pyApp.getApp(), nullptr);
+    plugin_.drawImGuiPanel(pyApp.getApp());
 }
 #endif // GEODRAW_HAS_IMGUI
 
@@ -1595,6 +1625,40 @@ Args:
 
 Example:
     app.auto_frame((-80, -80, -2), (80, 80, 10))
+)doc")
+        .def("set_orbit_camera", &PyApp::set_orbit_camera,
+             py::arg("target") = py::none(),
+             py::arg("yaw_deg") = 30.0f,
+             py::arg("pitch_deg") = 30.0f,
+             py::arg("distance") = 0.0f,
+             R"doc(Set the orbit-mode camera pose.
+
+Args:
+    target:    (x, y, z) point to orbit around. Default: (0, 0, 0).
+    yaw_deg:   Horizontal rotation in degrees. Default: 30.
+    pitch_deg: Vertical angle in degrees (90 = top-down). Default: 30.
+    distance:  Distance from target. 0 = auto-fit from geometry. Default: 0.
+
+Example — top-down view:
+    app.set_orbit_camera(pitch_deg=90)
+)doc")
+        .def("set_globe_camera", &PyApp::set_globe_camera,
+             py::arg("lat") = 0.0,
+             py::arg("lon") = 0.0,
+             py::arg("altitude") = 10000000.0,
+             py::arg("yaw_deg") = 0.0f,
+             py::arg("pitch_deg") = 45.0f,
+             R"doc(Set the globe-mode camera pose.
+
+Args:
+    lat:       Latitude of camera target in degrees (-90 to 90). Default: 0.
+    lon:       Longitude of camera target in degrees (-180 to 180). Default: 0.
+    altitude:  Camera altitude above target in meters. Default: 10,000,000.
+    yaw_deg:   Horizontal orbit angle in degrees. Default: 0.
+    pitch_deg: Vertical angle (0=horizon, 90=directly above). Default: 45.
+
+Example — overhead view of London:
+    app.set_globe_camera(lat=51.5, lon=-0.12, altitude=50000, pitch_deg=90)
 )doc")
         .def("request_continuous_update", &PyApp::request_continuous_update,
              py::arg("reason"),

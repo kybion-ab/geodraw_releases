@@ -10,7 +10,7 @@
  *
  *   // In ImGui callback:
  *   if (camTraj.getMinorMode() && app.isMinorModeActive(*camTraj.getMinorMode()))
- *       camTraj.drawImGuiPanel(app.camera, app, ImGui::GetCurrentContext());
+ *       camTraj.drawImGuiPanel(app.camera, app, ImGuiCtx(ImGui::GetCurrentContext()));
  *
  *   // Code-defined trajectory (optional):
  *   auto& kfs = camTraj.keyframes();
@@ -26,6 +26,7 @@
 #pragma once
 
 #include "geodraw/app/app_module.hpp"
+#include "geodraw/app/imgui_ctx.hpp"
 #include "geodraw/camera/camera.hpp"
 #include "geodraw/export/export.hpp"
 #include "geodraw/scene/scene.hpp"
@@ -127,7 +128,7 @@ public:
      * Pass ImGui::GetCurrentContext() as imguiCtx so the shared library
      * can call ImGui::SetCurrentContext() before making any ImGui calls.
      */
-    void drawImGuiPanel(Camera& camera, App& app, void* imguiCtx = nullptr);
+    void drawImGuiPanel(Camera& camera, App& app, ImGuiCtx imguiCtx = {});
 #endif
 
     //=========================================================================
