@@ -1,5 +1,26 @@
 # geodraw_releases
-GeoDraw is your scientific microscope for algorithms
+
+GeoDraw is a modern C++ library for building interactive visualization tools
+for geometry and algorithms with minimal boilerplate.
+
+It provides a simple, callback-based API for rendering geometric primitives
+(lines, triangles, meshes, point clouds) in interactive scenes with an
+integrated camera system, command palette, and optional Dear ImGui support.
+
+GeoDraw is designed to be embedded as a reusable component in larger systems,
+or used to rapidly construct small, focused visualization tools.
+
+## Features
+
+- Lightweight callback-based rendering API (no subclassing required)
+- Priority-based draw/update callback system
+- Integrated 3D camera with orbit, pan, and zoom
+- Command palette with key binding support
+- Dear ImGui panel integration
+- Earth/map tile rendering with OpenStreetMap support
+- Scenario and trajectory visualization for autonomous driving research
+- Python bindings via pybind11
+- AddressSanitizer-ready build option
 
 ## Prerequisites
 
